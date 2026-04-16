@@ -127,7 +127,7 @@ These variables control runtime behavior. They are propagated into every subagen
 
 ```
 ~/.pi/agent/extensions/subagent-isolation/
-├── index.ts      # Main extension source (~800 lines)
+├── index.ts      # Main extension source (~1,280 lines)
 └── README.md     # This file
 ```
 
