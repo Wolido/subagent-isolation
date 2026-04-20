@@ -452,6 +452,7 @@ async function runSingleAgent(
 		let wasAborted = false;
 
 		const POST_EXIT_GRACE_MS = 500;
+		const ABORT_FORCE_TIMEOUT_MS = 2000;
 		const DEFAULT_SILENCE_TIMEOUT_MS = 300_000;
 		const DEFAULT_HARD_TIMEOUT_MS = 3_600_000;
 
@@ -482,6 +483,7 @@ async function runSingleAgent(
 			let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
 			let silenceTimer: ReturnType<typeof setTimeout> | undefined;
 			let hardTimer: ReturnType<typeof setTimeout> | undefined;
+			let abortForceTimer: ReturnType<typeof setTimeout> | undefined;
 			let killProc: (() => void) | undefined;
 
 			const finalize = (code: number) => {
@@ -502,6 +504,10 @@ async function runSingleAgent(
 				if (hardTimer) {
 					clearTimeout(hardTimer);
 					hardTimer = undefined;
+				}
+				if (abortForceTimer) {
+					clearTimeout(abortForceTimer);
+					abortForceTimer = undefined;
 				}
 				proc.stdout?.removeAllListeners();
 				proc.stderr?.removeAllListeners();
@@ -610,16 +616,16 @@ async function runSingleAgent(
 				currentResult.stderr += data.toString();
 			});
 
-			proc.on("exit", (code) => {
-				exitCodeValue = code ?? 0;
+			proc.on("exit", (code, signal) => {
+				exitCodeValue = signal ? 1 : (code ?? 0);
 				maybeFinalizeAfterExit();
 				if (!resolved) {
 					postExitTimer = setTimeout(() => finalize(exitCodeValue ?? 0), POST_EXIT_GRACE_MS);
 				}
 			});
 
-			proc.on("close", (code) => {
-				finalize(code ?? 0);
+			proc.on("close", (code, signal) => {
+				finalize(signal ? 1 : (code ?? 0));
 			});
 
 			proc.on("error", () => {
@@ -634,9 +640,18 @@ async function runSingleAgent(
 					} catch {
 						/* ignore ESRCH */
 					}
+					if (exitCodeValue !== null || proc.exitCode !== null || proc.signalCode !== null) {
+						finalize(1);
+						return;
+					}
 					sigkillTimer = setTimeout(() => {
 						try {
-							if (!proc.killed) proc.kill("SIGKILL");
+							if (proc.exitCode === null && proc.signalCode === null) {
+								proc.kill("SIGKILL");
+								abortForceTimer = setTimeout(() => {
+									finalize(1);
+								}, ABORT_FORCE_TIMEOUT_MS);
+							}
 						} catch {
 							/* ignore ESRCH */
 						}
