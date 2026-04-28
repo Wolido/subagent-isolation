@@ -23,7 +23,7 @@
   - Global skills can be cleared with `--no-skills`
   - Per-agent `skills` list injects only the specified skills via `--skill <path>`
 - **Timeout & graceful termination**
-  - Silence timeout: 5 minutes (kills if stdout is idle)
+  - Silence timeout: 15 minutes (kills if stdout is idle)
   - Hard timeout: 1 hour
   - `AbortSignal` triggers `SIGTERM` → `SIGKILL` after 5 seconds
 - **TUI rendering**
@@ -120,7 +120,7 @@ These variables control runtime behavior. They are propagated into every subagen
 | `PI_SUBAGENT_DEPTH` | `0` | Current recursion depth. Automatically incremented per nested invocation. Hard cap is `2`. |
 | `PI_CAN_DELEGATE` | `true` | Whether the current agent is allowed to delegate. Derived from the agent's `canDelegate` frontmatter. |
 | `PI_CURRENT_AGENT_NAME` | — | Name of the current agent, injected into every subagent process. |
-| `PI_SUBAGENT_SILENCE_TIMEOUT_MS` | `300000` (5 min) | Max allowed idle time on stdout before the subagent is killed. |
+| `PI_SUBAGENT_SILENCE_TIMEOUT_MS` | `900000` (15 min) | Max allowed idle time on stdout before the subagent is killed. |
 | `PI_SUBAGENT_HARD_TIMEOUT_MS` | `3600000` (1 hour) | Absolute maximum runtime for a single subagent call. |
 
 ## Project Structure
