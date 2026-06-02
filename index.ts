@@ -513,7 +513,7 @@ async function runSingleAgent(
 
 		const POST_EXIT_GRACE_MS = 500;
 		const ABORT_FORCE_TIMEOUT_MS = 2000;
-		const DEFAULT_ACTIVITY_TIMEOUT_MS = 300_000;
+		const DEFAULT_ACTIVITY_TIMEOUT_MS = 600_000;
 		const DEFAULT_HARD_TIMEOUT_MS = 1_800_000;
 
 		const parseEnvInt = (raw: string | undefined, fallback: number): number => {
@@ -709,7 +709,10 @@ async function runSingleAgent(
 				);
 				if (activityMs > 0) {
 					activityTimer = setTimeout(() => {
-						currentResult.stderr += "[subagent-isolation] activity timeout exceeded, killing...\n";
+						const elapsed = Date.now() - currentResult.lastPhaseChange;
+						const phase = currentResult.phase;
+						const turns = currentResult.usage.turns;
+						currentResult.stderr += `[subagent-isolation] activity timeout exceeded after ${Math.round(elapsed / 1000)}s idle (phase: ${phase}, turns: ${turns}), killing...\n`;
 						try {
 							proc.kill("SIGKILL");
 						} catch {
@@ -727,7 +730,9 @@ async function runSingleAgent(
 				);
 				if (hardMs > 0) {
 					hardTimer = setTimeout(() => {
-						currentResult.stderr += "[subagent-isolation] hard timeout exceeded, killing...\n";
+						const turns = currentResult.usage.turns;
+						const phase = currentResult.phase;
+						currentResult.stderr += `[subagent-isolation] hard timeout exceeded (phase: ${phase}, turns: ${turns}), killing...\n`;
 						try {
 							proc.kill("SIGKILL");
 						} catch {
@@ -739,6 +744,7 @@ async function runSingleAgent(
 			};
 
 			proc.stdout.on("data", (data) => {
+				resetActivityTimer();
 				buffer += data.toString();
 				const lines = buffer.split("\n");
 				buffer = lines.pop() || "";
