@@ -34,6 +34,12 @@ import { Type } from "@sinclair/typebox";
 
 type AgentScope = "user" | "project" | "both";
 
+/** Minimal model info for passing current model to subagents */
+interface CurrentModel {
+	provider: string;
+	id: string;
+}
+
 interface AgentConfig {
 	name: string;
 	description: string;
@@ -425,6 +431,7 @@ async function runSingleAgent(
 	signal: AbortSignal | undefined,
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
+	parentModel?: CurrentModel,
 ): Promise<SingleResult> {
 	const agent = agents.find((a) => a.name === agentName);
 
@@ -445,7 +452,13 @@ async function runSingleAgent(
 	}
 
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];
-	if (agent.model) args.push("--model", agent.model);
+	if (agent.model) {
+		// Explicit agent-level model config takes priority
+		args.push("--model", agent.model);
+	} else if (parentModel) {
+		// Inherit the main agent's current model
+		args.push("--model", `${parentModel.provider}/${parentModel.id}`);
+	}
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
 	// MODIFIED: inject per-agent skill isolation
@@ -475,7 +488,7 @@ async function runSingleAgent(
 		messages: [],
 		stderr: "",
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-		model: agent.model,
+		model: agent.model || (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined),
 		step,
 		phase: "idle",
 		lastPhaseChange: Date.now(),
@@ -986,6 +999,7 @@ export default function (pi: ExtensionAPI) {
 						signal,
 						chainUpdate,
 						makeDetails("chain"),
+						ctx.model,
 					);
 					results.push(result);
 
@@ -1018,6 +1032,7 @@ export default function (pi: ExtensionAPI) {
 					signal,
 					onUpdate,
 					makeDetails("single"),
+					ctx.model,
 				);
 				const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
 				if (isError) {
