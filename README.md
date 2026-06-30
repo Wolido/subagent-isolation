@@ -1,13 +1,11 @@
 # subagent-isolation
 
-> A `pi` extension that delegates tasks to specialized subagents in isolated `pi` processes, giving each subagent its own clean context window.
+> A `pi` extension that delegates tasks to a specialized subagent in an isolated `pi` process, giving the subagent its own clean context window.
 
 ## Features
 
-- **Three invocation modes**
-  - `single` - call one agent with a task
-  - `parallel` - run up to 8 tasks concurrently (max 4 at a time)
-  - `chain` - run agents sequentially, injecting the previous step's output via `{previous}`
+- **Single invocation mode**
+  - `single` - call one agent with a task: `{ agent: "name", task: "..." }`
 - **Agent discovery & scoping**
   - `user` agents from `~/.pi/agent/agents/`
   - `project` agents from `.pi/agents/` (searched upward from the working directory)
@@ -43,11 +41,11 @@ git clone https://github.com/your-username/subagent-isolation.git \
 
 Or manually place the files so that `~/.pi/agent/extensions/subagent-isolation/index.ts` exists.
 
-## Usage Examples
+## Usage
 
-Agents are invoked via the `subagent` tool. Provide exactly one of `agent`/`task`, `tasks`, or `chain`.
+Agents are invoked via the `subagent` tool with `agent` and `task`.
 
-### Single mode
+### First call
 
 ```json
 {
@@ -57,32 +55,35 @@ Agents are invoked via the `subagent` tool. Provide exactly one of `agent`/`task
 }
 ```
 
-### Parallel mode
+The returned text will end with the actual session ID:
+
+```
+<agent output>
+
+[subagent session: 01912345-6789-7abc-8def-0123456789ab]
+```
+
+If the agent produces no output, the result is simply:
+
+```
+[subagent session: 01912345-6789-7abc-8def-0123456789ab]
+```
+
+### Reusing a session
+
+Pass the `sessionId` from a previous call to continue the same isolated session:
 
 ```json
 {
-  "tasks": [
-    { "agent": "reviewer", "task": "Review src/auth.ts", "cwd": "src" },
-    { "agent": "reviewer", "task": "Review src/db.ts" },
-    { "agent": "tester",   "task": "Write unit tests for auth.js" }
-  ],
-  "agentScope": "both"
+  "agent": "coder",
+  "task": "Now add unit tests for the refactored auth middleware.",
+  "sessionId": "01912345-6789-7abc-8def-0123456789ab"
 }
 ```
 
-### Chain mode
+The returned text still ends with `[subagent session: <id>]` so you can keep reusing it.
 
-```json
-{
-  "chain": [
-    { "agent": "planner", "task": "Design a REST API for user profiles.", "cwd": "src" },
-    { "agent": "coder",   "task": "Implement the API based on this plan: {previous}" },
-    { "agent": "reviewer", "task": "Review the implementation: {previous}" }
-  ]
-}
-```
-
-If any step in the chain fails, execution stops immediately and the remaining steps are not run.
+> ⚠️ **Concurrency warning**: Reusing the same `sessionId` from multiple concurrent `subagent` calls can corrupt the session file and interleave state. Only reuse a session ID for sequential calls, or ensure the subagent process has fully exited before reusing it.
 
 ## Agent Definition Format
 
@@ -127,7 +128,7 @@ These variables control runtime behavior. They are propagated into every subagen
 
 ```
 ~/.pi/agent/extensions/subagent-isolation/
-├── index.ts      # Main extension source (~1,280 lines)
+├── index.ts      # Main extension source
 └── README.md     # This file
 ```
 
