@@ -158,6 +158,8 @@ Agent 搜索规则：
 
 ## 主 agent 推荐配置
 
+主 agent 应该是一个纯粹的规划者：只读代码、做判断、委派任务。所有写文件、跑命令、改代码的具体操作都交给子 agent，每个子 agent 在独立的 pi 进程中运行。这样主 agent 的上下文只会保留“要做什么”和“结果是什么”，不会被工具调用细节污染。
+
 主 agent 的系统提示示例见 `examples/pi/agent/master.md`，复制到 `~/.pi/agent/master.md` 即可。
 
 完整的示例文件见 examples/pi/agent/master.md，可直接复制到 ~/.pi/agent/master.md 使用。

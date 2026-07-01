@@ -158,6 +158,8 @@ Agent discovery rules:
 
 ## Recommended main agent setup
 
+The main agent should be a pure planner: read code, make decisions, delegate tasks. All concrete work — writing files, running commands, editing code — is handled by subagents, each running in its own isolated pi process. This keeps the main agent's context focused on what to do and what came back, rather than being polluted by tool-call traces.
+
 Use `examples/pi/agent/master.md` as the main agent system prompt — copy it to `~/.pi/agent/master.md`.
 
 See examples/pi/agent/master.md for the full example — copy it to ~/.pi/agent/master.md.
