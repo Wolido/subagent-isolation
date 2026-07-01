@@ -6,7 +6,6 @@
 
 [![npm version](https://img.shields.io/npm/v/subagent-isolation)](https://www.npmjs.com/package/subagent-isolation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/Wolido/subagent-isolation)](https://github.com/Wolido/subagent-isolation)
 
 </div>
 
