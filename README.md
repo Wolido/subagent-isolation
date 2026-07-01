@@ -103,7 +103,11 @@ canDelegate: false
 
 ### 3. 用自然语言指派任务
 
-启动 `pi`，直接对主 agent 说：
+```bash
+pi
+```
+
+启动后，直接对主 agent 说：
 
 > 把认证中间件重构为 async/await。
 
@@ -167,11 +171,29 @@ Agent 搜索规则：
 3. 收到结果后再决定下一步，不要一次性把所有任务塞给子 agent。
 ```
 
-把示例 agent 复制到 `~/.pi/agent/agents/` 后，主 agent 启动时会自动发现它们。如果只想在当前项目生效，可以把 agent 放到 `.pi/agents/` 目录，并在启动时指定：
+把示例 agent 复制到 `~/.pi/agent/agents/`：
 
 ```bash
-pi --agent-dir .pi/agents
+cp examples/agents/*.md ~/.pi/agent/agents/
 ```
+
+然后使用以下命令启动主 agent：
+
+```bash
+pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/ --skill ~/.pi/agent/skills/github-issue-to-pr --skill ~/.pi/agent/skills/writing-skills --skill ~/.pi/agent/skills/magi-deliberation
+```
+
+各参数含义：
+
+- `--tools read,grep,find,ls,subagent,todo,OpenAaaS`：主 agent 只允许使用这些工具。`subagent` 用于委派任务，`todo` 用于任务管理，`OpenAaaS` 用于模型交互，`read/grep/find/ls` 用于查看仓库结构和已有 agent。
+- `--no-skills`：不加载默认 skills，保持主 agent 上下文干净。
+- `--append-system-prompt ~/.pi/agent/master.md`：把主 agent 的系统提示追加到默认提示后。
+- `--skill ~/.pi/agent/skills/brainstorming/`：加载头脑风暴 skill。
+- `--skill ~/.pi/agent/skills/github-issue-to-pr`：加载 GitHub issue 转 PR skill。
+- `--skill ~/.pi/agent/skills/writing-skills`：加载写作辅助 skill。
+- `--skill ~/.pi/agent/skills/magi-deliberation`：加载深度思考 skill。
+
+如果只想在当前项目生效，把 agent 放到 `.pi/agents/` 目录即可；扩展会在调用 `subagent` 时自动加载这些项目级 agent。
 
 ---
 

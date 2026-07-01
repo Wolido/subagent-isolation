@@ -103,7 +103,11 @@ You are a senior engineer. When you receive a task:
 
 ### 3. Assign the task in natural language
 
-Start `pi`, then tell the main agent:
+```bash
+pi
+```
+
+Then tell the main agent:
 
 > Refactor the auth middleware to use async/await.
 
@@ -167,11 +171,29 @@ Rules:
 3. Wait for the result before deciding the next step.
 ```
 
-After copying the example agents to `~/.pi/agent/agents/`, the main agent will discover them automatically. If you only want them for the current project, place them in `.pi/agents/` and point Pi at it:
+Copy the example agents to `~/.pi/agent/agents/`:
 
 ```bash
-pi --agent-dir .pi/agents
+cp examples/agents/*.md ~/.pi/agent/agents/
 ```
+
+Then start the main agent with:
+
+```bash
+pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/ --skill ~/.pi/agent/skills/github-issue-to-pr --skill ~/.pi/agent/skills/writing-skills --skill ~/.pi/agent/skills/magi-deliberation
+```
+
+What each flag does:
+
+- `--tools read,grep,find,ls,subagent,todo,OpenAaaS`: restricts the main agent to these tools. `subagent` delegates work, `todo` manages tasks, `OpenAaaS` talks to the model, and `read/grep/find/ls` inspect the repo structure and existing agents.
+- `--no-skills`: disables default skill loading to keep the main agent context clean.
+- `--append-system-prompt ~/.pi/agent/master.md`: appends the main agent system prompt to the default prompt.
+- `--skill ~/.pi/agent/skills/brainstorming/`: loads the brainstorming skill.
+- `--skill ~/.pi/agent/skills/github-issue-to-pr`: loads the GitHub issue-to-PR skill.
+- `--skill ~/.pi/agent/skills/writing-skills`: loads the writing assistance skill.
+- `--skill ~/.pi/agent/skills/magi-deliberation`: loads the deep deliberation skill.
+
+If you only want them for the current project, place them in `.pi/agents/`; the extension will load these project-level agents when invoking `subagent`.
 
 ---
 
