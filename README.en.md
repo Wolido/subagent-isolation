@@ -128,26 +128,26 @@ If you need to continue the same task, the subagent output ends with a session I
 
 ## Example agents
 
-The GitHub repo ships three ready-to-reference agents in [`examples/agents/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/agents):
+The GitHub repo ships three ready-to-reference agents in [`examples/pi/agent/agents/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/agents):
 
 | Agent | Purpose | Tools | Skill |
 |-------|---------|-------|-------|
-| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/coder.md) | Write, modify, and validate code | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
-| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/reviewer.md) | Read-only review with actionable feedback | `read, grep, find, ls` | _(none)_ |
-| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/writer.md) | Write docs, READMEs, commit messages | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |
+| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/pi/agent/agents/coder.md) | Write, modify, and validate code | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
+| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/pi/agent/agents/reviewer.md) | Read-only review with actionable feedback | `read, grep, find, ls` | _(none)_ |
+| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/pi/agent/agents/writer.md) | Write docs, READMEs, commit messages | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |
 
 Copy the `.md` files you need into `~/.pi/agent/agents/` (user-scoped) or `.pi/agents/` (project-scoped).
 
 If you have already cloned the repo, copy them directly:
 
 ```bash
-cp examples/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 ```
 
 Or download a single file from GitHub (using `coder` as an example):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Wolido/subagent-isolation/main/examples/agents/coder.md \
+curl -fsSL https://raw.githubusercontent.com/Wolido/subagent-isolation/main/examples/pi/agent/agents/coder.md \
   -o ~/.pi/agent/agents/coder.md
 ```
 
@@ -180,12 +180,12 @@ Rules:
 3. Wait for the result before deciding the next step.
 ```
 
-See examples/agents/master.md for the full example — copy it to ~/.pi/agent/master.md.
+See examples/pi/agent/master.md for the full example — copy it to ~/.pi/agent/master.md.
 
 Copy the example agents to `~/.pi/agent/agents/`:
 
 ```bash
-cp examples/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 ```
 
 Then start the main agent with:
@@ -219,21 +219,21 @@ The main agent keeps only "what to do" and "what happened." All intermediate too
 
 ## Example skills
 
-The GitHub repo ships three ready-to-use skills in [`examples/skills/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills):
+The GitHub repo ships three ready-to-use skills in [`examples/pi/agent/skills/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills):
 
 | Skill | Used by | Description |
 |-------|---------|-------------|
-| [`brainstorming`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/brainstorming) | Main agent | Turn ideas into fully formed designs through collaborative dialogue |
-| [`systematic-debugging`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/systematic-debugging) | `coder` | Find root cause before attempting any fix (4-phase process) |
-| [`writing-clearly-and-concisely`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/writing-clearly-and-concisely) | `writer` | Refine prose with clarity rules, AI-pattern detection, and voice injection |
+| [`brainstorming`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills/brainstorming) | Main agent | Turn ideas into fully formed designs through collaborative dialogue |
+| [`systematic-debugging`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills/systematic-debugging) | `coder` | Find root cause before attempting any fix (4-phase process) |
+| [`writing-clearly-and-concisely`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills/writing-clearly-and-concisely) | `writer` | Refine prose with clarity rules, AI-pattern detection, and voice injection |
 
 Copy them to `~/.pi/agent/skills/`:
 
 ```bash
 mkdir -p ~/.pi/agent/skills
-cp -r examples/skills/brainstorming ~/.pi/agent/skills/
-cp -r examples/skills/systematic-debugging ~/.pi/agent/skills/
-cp -r examples/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/brainstorming ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/systematic-debugging ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
 ```
 
 Skills can be loaded in two ways:
@@ -254,14 +254,10 @@ If you need to construct `subagent` calls manually, reuse a `sessionId`, view th
 ## Project structure
 
 - `src/index.ts` — main extension source
-- `examples/agents/` — example agent definitions
-  - `coder.md`
-  - `reviewer.md`
-  - `writer.md`
-- `examples/skills/` — example skill definitions
-  - `brainstorming/`
-  - `systematic-debugging/`
-  - `writing-clearly-and-concisely/`
+- `examples/pi/agent/` — example agent and skill definitions
+  - `master.md` — main agent system prompt
+  - `agents/` — subagent definitions
+  - `skills/` — skill definitions
 - `package.json` — npm package manifest
 - `tsconfig.json` — TypeScript configuration
 - `README.md` / `README.en.md` — documentation

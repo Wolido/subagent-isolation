@@ -128,26 +128,26 @@ pi
 
 ## 示例 agents
 
-GitHub 仓库的 [`examples/agents/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/agents) 提供了三个可直接参考的 agent：
+GitHub 仓库的 [`examples/pi/agent/agents/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/agents) 提供了三个可直接参考的 agent：
 
 | Agent | 作用 | 可用工具 | 加载的 skill |
 |-------|------|----------|-------------|
-| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/coder.md) | 写代码、改代码、跑验证 | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
-| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/reviewer.md) | 只读评审，输出可操作的反馈 | `read, grep, find, ls` | _(无)_ |
-| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/writer.md) | 写文档、改 README、生成 commit message | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |
+| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/pi/agent/agents/coder.md) | 写代码、改代码、跑验证 | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
+| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/pi/agent/agents/reviewer.md) | 只读评审，输出可操作的反馈 | `read, grep, find, ls` | _(无)_ |
+| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/pi/agent/agents/writer.md) | 写文档、改 README、生成 commit message | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |
 
 把它们复制到 `~/.pi/agent/agents/`（用户级）或项目内的 `.pi/agents/`（项目级）即可使用。
 
 如果你已经克隆了仓库，可以直接复制：
 
 ```bash
-cp examples/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 ```
 
 也可以单独从 GitHub 下载（以 `coder` 为例）：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Wolido/subagent-isolation/main/examples/agents/coder.md \
+curl -fsSL https://raw.githubusercontent.com/Wolido/subagent-isolation/main/examples/pi/agent/agents/coder.md \
   -o ~/.pi/agent/agents/coder.md
 ```
 
@@ -180,12 +180,12 @@ Agent 搜索规则：
 3. 收到结果后再决定下一步，不要一次性把所有任务塞给子 agent。
 ```
 
-完整的示例文件见 examples/agents/master.md，可直接复制到 ~/.pi/agent/master.md 使用。
+完整的示例文件见 examples/pi/agent/master.md，可直接复制到 ~/.pi/agent/master.md 使用。
 
 把示例 agent 复制到 `~/.pi/agent/agents/`：
 
 ```bash
-cp examples/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 ```
 
 然后使用以下命令启动主 agent：
@@ -221,21 +221,21 @@ pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-
 
 ## 示例 skills
 
-GitHub 仓库的 [`examples/skills/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills) 提供了三个可直接使用的 skill：
+GitHub 仓库的 [`examples/pi/agent/skills/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills) 提供了三个可直接使用的 skill：
 
 | Skill | 使用者 | 描述 |
 |-------|--------|------|
-| [`brainstorming`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/brainstorming) | 主 agent | 通过协作对话把想法变成完整设计 |
-| [`systematic-debugging`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/systematic-debugging) | `coder` | 修 bug 前先找根因（四阶段流程） |
-| [`writing-clearly-and-concisely`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/writing-clearly-and-concisely) | `writer` | 用简洁规则、AI 痕迹检测和人味注入打磨文字 |
+| [`brainstorming`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills/brainstorming) | 主 agent | 通过协作对话把想法变成完整设计 |
+| [`systematic-debugging`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills/systematic-debugging) | `coder` | 修 bug 前先找根因（四阶段流程） |
+| [`writing-clearly-and-concisely`](https://github.com/Wolido/subagent-isolation/tree/main/examples/pi/agent/skills/writing-clearly-and-concisely) | `writer` | 用简洁规则、AI 痕迹检测和人味注入打磨文字 |
 
 把这些 skill 复制到 `~/.pi/agent/skills/`：
 
 ```bash
 mkdir -p ~/.pi/agent/skills
-cp -r examples/skills/brainstorming ~/.pi/agent/skills/
-cp -r examples/skills/systematic-debugging ~/.pi/agent/skills/
-cp -r examples/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/brainstorming ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/systematic-debugging ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
 ```
 
 Skill 的加载方式有两种：
@@ -256,14 +256,10 @@ Skill 搜索规则与 agent 相同：`~/.pi/agent/skills/`（用户级）和 `.p
 ## 项目结构
 
 - `src/index.ts` — 扩展主源码
-- `examples/agents/` — 示例 agent 定义
-  - `coder.md`
-  - `reviewer.md`
-  - `writer.md`
-- `examples/skills/` — 示例 skill 定义
-  - `brainstorming/`
-  - `systematic-debugging/`
-  - `writing-clearly-and-concisely/`
+- `examples/pi/agent/` — 示例 agent 和 skill 定义
+  - `master.md` — 主 agent 系统提示
+  - `agents/` — 子 agent 定义
+  - `skills/` — skill 定义
 - `package.json` — npm 包清单
 - `tsconfig.json` — TypeScript 配置
 - `README.md` / `README.en.md` — 说明文档

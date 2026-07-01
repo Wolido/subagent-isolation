@@ -1,12 +1,14 @@
 # Examples for `subagent-isolation`
 
+> 将 examples/pi/ 复制到 ~/.pi/ 即可使用所有示例。
+
 > Before using these examples, install the extension with `pi install npm:subagent-isolation`.
 
 This directory contains example agent definitions and skill files that demonstrate how to build isolated, single-purpose subagents on top of the `subagent-isolation` extension.
 
 ## Examples overview
 
-### Agents (`agents/`)
+### Agents (`pi/agent/agents/`)
 
 | Agent | Purpose | Tools | Skill |
 |-------|---------|-------|-------|
@@ -19,21 +21,21 @@ All three agents set `canDelegate: false`, so they act as leaf executors in a "m
 
 Each agent can optionally load a skill (specified in the `skills:` frontmatter field). Skills give the agent specialized knowledge — for example, `coder` uses `systematic-debugging` to methodically find root causes, and `writer` uses `writing-clearly-and-concisely` to produce polished, human-sounding prose. `reviewer` intentionally uses no skill, showing that the field is optional.
 
-### Skills (`skills/`)
+### Skills (`pi/agent/skills/`)
 
 | Skill | Used by | Description |
 |-------|---------|-------------|
-| [`brainstorming`](skills/brainstorming/SKILL.md) | Main agent | Turn ideas into fully formed designs through collaborative dialogue |
-| [`systematic-debugging`](skills/systematic-debugging/SKILL.md) | `coder` | Find root cause before attempting any fix (4-phase process) |
-| [`writing-clearly-and-concisely`](skills/writing-clearly-and-concisely/SKILL.md) | `writer` | Refine prose with clarity rules, AI-pattern detection, and voice injection |
+| [`brainstorming`](pi/agent/skills/brainstorming/SKILL.md) | Main agent | Turn ideas into fully formed designs through collaborative dialogue |
+| [`systematic-debugging`](pi/agent/skills/systematic-debugging/SKILL.md) | `coder` | Find root cause before attempting any fix (4-phase process) |
+| [`writing-clearly-and-concisely`](pi/agent/skills/writing-clearly-and-concisely/SKILL.md) | `writer` | Refine prose with clarity rules, AI-pattern detection, and voice injection |
 
 These skills are copies of real-world skills. To use them:
 
 ```bash
 mkdir -p ~/.pi/agent/skills
-cp -r examples/skills/brainstorming ~/.pi/agent/skills/
-cp -r examples/skills/systematic-debugging ~/.pi/agent/skills/
-cp -r examples/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/brainstorming ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/systematic-debugging ~/.pi/agent/skills/
+cp -r examples/pi/agent/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
 ```
 
 Skills are discovered from `~/.pi/agent/skills/` (user scope) or `.pi/skills/` (project scope). The `skills:` field in an agent's frontmatter tells pi which skills to load for that agent. The main agent can also load skills via the `--skill` flag:
@@ -48,7 +50,7 @@ Copy the agent files into your user agents directory so `pi` can discover them:
 
 ```bash
 mkdir -p ~/.pi/agent/agents
-cp examples/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 ```
 
 You can also place them in a project-local `.pi/agents/` directory if the agents should only be available for a specific repository.

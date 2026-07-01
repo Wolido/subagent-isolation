@@ -14,8 +14,7 @@
     "ADVANCED.md",
     "ADVANCED.en.md",
     "LICENSE",
-    "examples/agents",
-    "examples/skills"
+    "examples/pi"
   ],
   "keywords": [
     "pi-package",
