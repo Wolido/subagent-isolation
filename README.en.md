@@ -91,9 +91,17 @@ Once installed, the `pi` command is available in your terminal.
 pi install npm:subagent-isolation
 ```
 
-### 2. Create your first subagent
+### 2. Copy the example agents
 
-Write this to `~/.pi/agent/agents/coder.md`:
+The examples already include this configuration. Copy them directly or customize as needed:
+
+```bash
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/master.md ~/.pi/agent/master.md
+cp -r examples/pi/agent/skills/* ~/.pi/agent/skills/
+```
+
+The `coder.md` file looks like this:
 
 ```markdown
 ---
@@ -109,6 +117,8 @@ You are a senior engineer. When you receive a task:
 3. Run relevant tests or type checks.
 4. Summarize what changed and end with `[coder: done]`.
 ```
+
+Use it as-is, or tweak it to fit your workflow.
 
 ### 3. Assign the task in natural language
 

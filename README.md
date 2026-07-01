@@ -91,9 +91,17 @@ npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 pi install npm:subagent-isolation
 ```
 
-### 2. 创建你的第一个子 agent
+### 2. 复制示例 agent
 
-在 `~/.pi/agent/agents/coder.md` 写入：
+示例已经包含这个配置，你可以直接复制，也可以按需修改：
+
+```bash
+cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
+cp examples/pi/agent/master.md ~/.pi/agent/master.md
+cp -r examples/pi/agent/skills/* ~/.pi/agent/skills/
+```
+
+其中 `coder.md` 的内容如下：
 
 ```markdown
 ---
@@ -109,6 +117,8 @@ canDelegate: false
 3. 运行相关测试或类型检查；
 4. 总结改了什么，并输出 `[coder: done]`。
 ```
+
+直接复制即可使用，也可以根据自己的需求调整。
 
 ### 3. 用自然语言指派任务
 
