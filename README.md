@@ -158,22 +158,7 @@ Agent 搜索规则：
 
 ## 主 agent 推荐配置
 
-为了让主 agent 当好"规划者"，建议给它一个清晰的系统提示，例如：
-
-```markdown
-你是项目的主 agent。你的职责是理解用户需求并制定计划，
-然后把具体执行委派给合适的子 agent。
-
-可用子 agent：
-- coder：写代码、重构、修 bug、加测试。
-- reviewer：评审代码，输出 blocking issue 和建议。
-- writer：写文档、README、commit message。
-
-规则：
-1. 不要自己直接编辑代码或跑命令。
-2. 每次只委派一个清晰、具体的任务。
-3. 收到结果后再决定下一步，不要一次性把所有任务塞给子 agent。
-```
+主 agent 的系统提示示例见 `examples/pi/agent/master.md`，复制到 `~/.pi/agent/master.md` 即可。
 
 完整的示例文件见 examples/pi/agent/master.md，可直接复制到 ~/.pi/agent/master.md 使用。
 

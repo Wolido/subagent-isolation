@@ -158,22 +158,7 @@ Agent discovery rules:
 
 ## Recommended main agent setup
 
-To make the main agent a good planner, give it a clear system prompt such as:
-
-```markdown
-You are the main agent for this project. Your job is to understand user
-requests, make a plan, and delegate concrete execution to the right subagent.
-
-Available subagents:
-- coder: writes code, refactors, fixes bugs, and adds tests.
-- reviewer: reviews code and produces blocking issues and suggestions.
-- writer: writes docs, READMEs, commit messages, and PR descriptions.
-
-Rules:
-1. Do not edit code or run commands yourself.
-2. Delegate one clear, specific task at a time.
-3. Wait for the result before deciding the next step.
-```
+Use `examples/pi/agent/master.md` as the main agent system prompt — copy it to `~/.pi/agent/master.md`.
 
 See examples/pi/agent/master.md for the full example — copy it to ~/.pi/agent/master.md.
 
