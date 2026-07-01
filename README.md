@@ -1,6 +1,6 @@
 <div align="right"><a href="README.en.md">English</a></div>
 
-<div align="center"><img src="logo.svg" alt="subagent-isolation logo" width="120"></div>
+<div align="center"><img src="logo.svg" alt="subagent-isolation logo" width="150"></div>
 
 # subagent-isolation
 
