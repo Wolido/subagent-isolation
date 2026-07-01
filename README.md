@@ -31,27 +31,24 @@
 
 ## 核心设计
 
-```
-┌─────────────────────────────────────┐
-│           主 agent (规划者)          │
-│  “把认证中间件重构为 async/await”     │
-│            subagent tool            │
-└──────────────┬──────────────────────┘
-               │ 启动独立 pi 进程
-               ▼
-┌─────────────────────────────────────┐
-│        coder 子 agent (执行者)       │
-│  · 独立上下文窗口                    │
-│  · 只加载 coder 需要的 tools/skills  │
-│  · 通过 read / edit / bash 完成修改  │
-│  · 返回结果，释放进程                │
-└─────────────────────────────────────┘
-```
+| 角色 | 职责 | 运行位置 |
+|------|------|----------|
+| 主 agent | 理解需求、拆分任务、委派与汇总 | 你的 `pi` 主会话 |
+| 子 agent | 读代码、改代码、跑验证并返回结果 | 独立的 `pi --mode json` 进程 |
 
-1. **进程隔离**：每个子 agent 启动新的 `pi --mode json` 进程，系统提示写入临时文件并通过 `--append-system-prompt` 注入，互不污染。
-2. **上下文隔离**：子 agent 看不到主 agent 的执行痕迹，只拿到你委派的那一句话任务。
-3. **能力隔离**：通过 `tools` 和 `skills` 字段，给不同子 agent 配备不同的“工具箱”。
-4. **递归可控**：默认最大递归深度为 2，必要时用 `canDelegate: false` 让子 agent 无法继续下发任务。
+一个典型任务会这样流转：
+
+1. 你向主 agent 提出任务。
+2. 主 agent 通过 `subagent` tool 启动一个独立 pi 进程。
+3. 子 agent 只拿到委派的那句话和自身配置，完成具体修改。
+4. 子 agent 返回结果并退出，主 agent 决定下一步。
+
+隔离由四个方面保证：
+
+- **进程隔离**：每个子 agent 启动新的 `pi --mode json` 进程，系统提示写入临时文件并通过 `--append-system-prompt` 注入，互不污染。
+- **上下文隔离**：子 agent 看不到主 agent 的执行痕迹，只拿到你委派的那一句话任务。
+- **能力隔离**：通过 `tools` 和 `skills` 字段，给不同子 agent 配备不同的“工具箱”。
+- **递归可控**：默认最大递归深度为 2，必要时用 `canDelegate: false` 让子 agent 无法继续下发任务。
 
 ---
 
@@ -104,34 +101,15 @@ canDelegate: false
 4. 总结改了什么，并输出 `[coder: done]`。
 ```
 
-### 3. 在主 agent 中调用
+### 3. 用自然语言指派任务
 
-```json
-{
-  "agent": "coder",
-  "task": "将认证中间件重构为使用 async/await。"
-}
-```
+启动 `pi`，直接对主 agent 说：
 
-子 agent 完成后，返回结果末尾会附带 session ID：
+> 把认证中间件重构为 async/await。
 
-```
-<子 agent 的输出>
+主 agent 会自动通过 `subagent` tool 调用 `coder`。你不需要手写 JSON，也不需要关心 `sessionId`——扩展会处理隔离进程的启动和回收。
 
-[subagent session: 01912345-6789-7abc-8def-0123456789ab]
-```
-
-下次继续同一任务时，传入 `sessionId` 即可复用隔离会话：
-
-```json
-{
-  "agent": "coder",
-  "task": "为重构后的认证中间件添加单元测试。",
-  "sessionId": "01912345-6789-7abc-8def-0123456789ab"
-}
-```
-
-> ⚠️ **并发提醒**：同一个 `sessionId` 不要同时用于多个并发的 `subagent` 调用，否则可能损坏 session 文件。请顺序复用，或确认子 agent 已完全退出。
+如果你需要继续同一任务，子 agent 输出末尾会附带 session ID。具体调用格式与复用方式见 [ADVANCED.md](ADVANCED.md)。
 
 ---
 
@@ -199,96 +177,33 @@ pi --agent-dir .pi/agents
 
 ## 架构与工作流程
 
-```
-用户提问
-   │
-   ▼
-┌─────────────┐    任务拆分     ┌─────────────┐
-│  主 agent    │ ─────────────▶ │ subagent    │
-│  · 规划      │                │   tool      │
-│  · 委派      │                └──────┬──────┘
-│  · 汇总结果  │                       │
-└─────────────┘                       │ 启动独立 pi 进程
-                                      ▼
-                            ┌───────────────────┐
-                            │   子 agent 进程    │
-                            │ · 干净上下文       │
-                            │ · 指定 tools       │
-                            │ · 指定 skills      │
-                            │ · 执行并返回       │
-                            └───────────────────┘
-```
+1. 用户提出需求。
+2. 主 agent 拆分任务，并决定委派给哪个子 agent。
+3. `subagent` tool 为子 agent 启动独立的 pi 进程。
+4. 子 agent 在干净上下文中执行，只使用指定的 tools/skills。
+5. 子 agent 返回结果并退出，主 agent 汇总后继续。
 
 主 agent 只保留“要做什么”和“结果是什么”，中间的工具调用痕迹全部留在子 agent 的进程里。任务越复杂，这种隔离带来的收益越明显。
 
 ---
 
-## 进阶配置
+## 进阶用法
 
-### Agent 定义格式
-
-Agent 是 agents 目录中的 Markdown 文件（`.md`）。frontmatter 描述元数据，正文成为系统提示。
-
-```markdown
----
-name: coder
-description: 编写整洁的 TypeScript 并处理重构。
-tools: read, edit, write, bash
-model: claude-3-7-sonnet
-skills: /path/to/skill1,/path/to/skill2
-canDelegate: false
----
-
-你是一名资深 TypeScript 工程师。优先使用 async/await，避免回调。
-```
-
-### Frontmatter 字段
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | `string` | **必填。** 工具调用时使用的唯一标识符。 |
-| `description` | `string` | **必填。** 在 agent 列表和错误信息中显示的简短描述。 |
-| `tools` | `string[]`（逗号分隔） | 可选的子 agent 工具白名单。 |
-| `model` | `string` | 可选的模型覆盖，例如 `claude-3-7-sonnet`。 |
-| `skills` | `string[]`（逗号分隔） | 可选的 skill 路径列表。若存在，则禁用全局 skills，仅加载列出的 skill。路径可绝对或相对于工作目录。 |
-| `canDelegate` | `boolean` | 默认为 `true`。设为 `false` 可阻止该 agent 继续创建 subagent。 |
-
-### 环境变量
-
-以下变量会自动传播到每个子 agent 进程：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `PI_SUBAGENT_DEPTH` | `0` | 当前递归深度。每次嵌套调用自动递增，硬上限为 `2`。 |
-| `PI_CAN_DELEGATE` | `true` | 当前 agent 是否允许委托，由 `canDelegate` 推导。 |
-| `PI_CURRENT_AGENT_NAME` | — | 当前 agent 名称，注入每个子 agent 进程。 |
-| `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000`（10 分钟） | stdout 空闲时的最大允许时间。 |
-| `PI_SUBAGENT_HARD_TIMEOUT_MS` | `1800000`（30 分钟） | 单次 subagent 调用的绝对最大运行时长。 |
-
-### 超时与终止
-
-- 活动超时 10 分钟：子 agent stdout 长时间无输出会被终止。
-- 硬超时 30 分钟：单次调用无论是否有输出，超过即终止。
-- 收到 `AbortSignal` 时先发送 `SIGTERM`，5 秒后未退出则发送 `SIGKILL`。
+如果需要手写 `subagent` 调用、复用 `sessionId`、查看完整 frontmatter 字段或调整环境变量，请参阅 [ADVANCED.md](ADVANCED.md)。
 
 ---
 
 ## 项目结构
 
-```
-subagent-isolation/
-├── src/
-│   └── index.ts          # 扩展主源码
-├── examples/agents/      # 示例 agent 定义
-│   ├── coder.md
-│   ├── reviewer.md
-│   └── writer.md
-├── package.json          # npm 包清单
-├── tsconfig.json         # TypeScript 配置
-├── README.md             # 中文说明（本文档）
-├── README.en.md          # 英文说明
-└── LICENSE               # MIT 许可证
-```
+- `src/index.ts` — 扩展主源码
+- `examples/agents/` — 示例 agent 定义
+  - `coder.md`
+  - `reviewer.md`
+  - `writer.md`
+- `package.json` — npm 包清单
+- `tsconfig.json` — TypeScript 配置
+- `README.md` / `README.en.md` — 说明文档
+- `LICENSE` — MIT 许可证
 
 ---
 

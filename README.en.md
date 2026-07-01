@@ -31,27 +31,24 @@ Is your main agent drowning in implementation details? During a single refactor,
 
 ## Core design
 
-```
-┌─────────────────────────────────────────────┐
-│          Main agent (planner)               │
-│  "Refactor the auth middleware to async/await"│
-│              subagent tool                  │
-└──────────────────┬──────────────────────────┘
-                   │ spawn isolated pi process
-                   ▼
-┌─────────────────────────────────────────────┐
-│          coder subagent (executor)          │
-│  · isolated context window                  │
-│  · only the tools/skills coder needs        │
-│  · performs edits via read / edit / bash    │
-│  · returns result, process exits            │
-└─────────────────────────────────────────────┘
-```
+| Role | Responsibility | Where it runs |
+|------|----------------|---------------|
+| Main agent | Understand requests, split tasks, delegate, and summarize | Your main `pi` session |
+| Subagent | Read, edit, run checks, and return results | Isolated `pi --mode json` process |
 
-1. **Process isolation**: every subagent spawns a fresh `pi --mode json` process. Its system prompt is written to a temp file and injected via `--append-system-prompt`, so subagents never pollute each other.
-2. **Context isolation**: the subagent sees only the task you delegated, not the tool-call trail from the main agent.
-3. **Capability isolation**: the `tools` and `skills` fields give each subagent a precise, minimal toolbox.
-4. **Controlled recursion**: default max recursion depth is 2; set `canDelegate: false` to prevent a subagent from spawning further subagents.
+A typical task flows like this:
+
+1. You describe the task to the main agent.
+2. The main agent uses the `subagent` tool to spawn an isolated `pi` process.
+3. The subagent receives only the delegated task and its own config, then performs the work.
+4. The subagent returns its result and exits; the main agent decides what’s next.
+
+Isolation is guaranteed by:
+
+- **Process isolation**: every subagent spawns a fresh `pi --mode json` process. Its system prompt is written to a temp file and injected via `--append-system-prompt`, so subagents never pollute each other.
+- **Context isolation**: the subagent sees only the task you delegated, not the tool-call trail from the main agent.
+- **Capability isolation**: the `tools` and `skills` fields give each subagent a precise, minimal toolbox.
+- **Controlled recursion**: default max recursion depth is 2; set `canDelegate: false` to prevent a subagent from spawning further subagents.
 
 ---
 
@@ -104,34 +101,15 @@ You are a senior engineer. When you receive a task:
 4. Summarize what changed and end with `[coder: done]`.
 ```
 
-### 3. Invoke it from the main agent
+### 3. Assign the task in natural language
 
-```json
-{
-  "agent": "coder",
-  "task": "Refactor the auth middleware to use async/await."
-}
-```
+Start `pi`, then tell the main agent:
 
-When the subagent finishes, its output ends with a session ID:
+> Refactor the auth middleware to use async/await.
 
-```
-<subagent output>
+The main agent will automatically call the `coder` subagent via the `subagent` tool. You don’t need to write JSON or worry about `sessionId` — the extension handles spawning and cleanup.
 
-[subagent session: 01912345-6789-7abc-8def-0123456789ab]
-```
-
-To continue the same isolated session, pass the `sessionId`:
-
-```json
-{
-  "agent": "coder",
-  "task": "Add unit tests for the refactored auth middleware.",
-  "sessionId": "01912345-6789-7abc-8def-0123456789ab"
-}
-```
-
-> ⚠️ **Concurrency note**: reusing the same `sessionId` from multiple concurrent `subagent` calls can corrupt the session file. Use it sequentially, or make sure the subagent process has fully exited before reuse.
+If you need to continue the same task, the subagent output ends with a session ID. See [ADVANCED.en.md](ADVANCED.en.md) for the exact format and reuse rules.
 
 ---
 
@@ -199,96 +177,33 @@ pi --agent-dir .pi/agents
 
 ## Architecture and workflow
 
-```
-User request
-    │
-    ▼
-┌─────────────┐    split tasks     ┌─────────────┐
-│  Main agent  │ ────────────────▶ │  subagent   │
-│  · plan      │                   │    tool     │
-│  · delegate  │                   └──────┬──────┘
-│  · summarize │                          │
-└─────────────┘                           │ spawn isolated pi process
-                                          ▼
-                                ┌───────────────────┐
-                                │  Subagent process  │
-                                │ · clean context    │
-                                │ · selected tools   │
-                                │ · selected skills  │
-                                │ · execute & return │
-                                └───────────────────┘
-```
+1. The user makes a request.
+2. The main agent breaks it down and picks the right subagent.
+3. The `subagent` tool spawns an isolated `pi` process for that subagent.
+4. The subagent executes with a clean context and only the selected tools/skills.
+5. The subagent returns its result and exits; the main agent summarizes and continues.
 
 The main agent keeps only "what to do" and "what happened." All intermediate tool-call noise stays inside the subagent process. The more complex the task, the bigger the win.
 
 ---
 
-## Advanced configuration
+## Advanced usage
 
-### Agent definition format
-
-Agents are Markdown files (`.md`) in an agents directory. Frontmatter describes metadata; the body becomes the system prompt.
-
-```markdown
----
-name: coder
-description: Writes clean TypeScript and handles refactors.
-tools: read, edit, write, bash
-model: claude-3-7-sonnet
-skills: /path/to/skill1,/path/to/skill2
-canDelegate: false
----
-
-You are a senior TypeScript engineer. Prefer async/await and avoid callbacks.
-```
-
-### Frontmatter fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | `string` | **Required.** Unique identifier used in tool calls. |
-| `description` | `string` | **Required.** Short summary shown in discovery / error messages. |
-| `tools` | `string[]` (comma-separated) | Optional tool whitelist for the subagent. |
-| `model` | `string` | Optional model override, e.g. `claude-3-7-sonnet`. |
-| `skills` | `string[]` (comma-separated) | Optional skill path list. If present, global skills are disabled and only these are loaded. Paths can be absolute or relative to the working directory. |
-| `canDelegate` | `boolean` | Defaults to `true`. Set to `false` to prevent this agent from spawning further subagents. |
-
-### Environment variables
-
-These variables are propagated into every subagent process automatically:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PI_SUBAGENT_DEPTH` | `0` | Current recursion depth. Auto-incremented per nested call. Hard cap is `2`. |
-| `PI_CAN_DELEGATE` | `true` | Whether the current agent is allowed to delegate. Derived from `canDelegate`. |
-| `PI_CURRENT_AGENT_NAME` | — | Name of the current agent, injected into every subagent process. |
-| `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000` (10 min) | Max idle time on stdout before the subagent is killed. |
-| `PI_SUBAGENT_HARD_TIMEOUT_MS` | `1800000` (30 min) | Absolute maximum runtime for a single subagent call. |
-
-### Timeouts and termination
-
-- Activity timeout: 10 minutes — subagent is killed if stdout is idle.
-- Hard timeout: 30 minutes — single call is killed regardless of output.
-- On `AbortSignal`, `SIGTERM` is sent; `SIGKILL` follows after 5 seconds if still running.
+If you need to construct `subagent` calls manually, reuse a `sessionId`, view the full frontmatter fields, or tune environment variables, see [ADVANCED.en.md](ADVANCED.en.md).
 
 ---
 
 ## Project structure
 
-```
-subagent-isolation/
-├── src/
-│   └── index.ts          # Main extension source
-├── examples/agents/      # Example agent definitions
-│   ├── coder.md
-│   ├── reviewer.md
-│   └── writer.md
-├── package.json          # npm package manifest
-├── tsconfig.json         # TypeScript configuration
-├── README.md             # Chinese documentation
-├── README.en.md          # English documentation (this file)
-└── LICENSE               # MIT license
-```
+- `src/index.ts` — main extension source
+- `examples/agents/` — example agent definitions
+  - `coder.md`
+  - `reviewer.md`
+  - `writer.md`
+- `package.json` — npm package manifest
+- `tsconfig.json` — TypeScript configuration
+- `README.md` / `README.en.md` — documentation
+- `LICENSE` — MIT license
 
 ---
 
