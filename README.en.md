@@ -15,7 +15,7 @@
 
 The main agent can't touch code. No `write`, no `edit`, no `bash`. It only has four read-only tools — `read`, `grep`, `find`, `ls` — plus a `subagent` tool for delegation. All file changes, shell commands, and execution logic go to subagents. Each subagent runs in its own `pi` process with its own system prompt and skills. No shared state between the main agent and subagents, or between subagents.
 
-**subagent-isolation** is an extension for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). Pi already supports subagents. This extension adds one constraint — **it strips the main agent of execution tools and enforces isolation**. The main agent becomes a planner and observer, nothing more.
+**subagent-isolation** is an extension for [Pi Agent](https://github.com/earendil-works/pi). Pi already supports subagents. This extension adds one constraint — **it strips the main agent of execution tools and enforces isolation**. The main agent becomes a planner and observer, nothing more.
 
 ---
 

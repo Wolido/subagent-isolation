@@ -15,7 +15,7 @@
 
 主 agent 不能碰代码。没有 `write`，没有 `edit`，没有 `bash`。它只有 `read`、`grep`、`find`、`ls` 四个只读工具，外加一个 `subagent` 工具用来委派任务。所有修改文件、跑命令、执行逻辑的工作，全部交给子 agent——每个子 agent 跑在独立的 `pi` 进程中，有自己的 system prompt 和 skills。主 agent 和子 agent 之间，子 agent 和子 agent 之间，进程完全隔离。
 
-**subagent-isolation** 是 [Pi Agent](https://github.com/earendil-works/pi-coding-agent) 的扩展。Pi 本身已经支持子 agent，但这个扩展做了一个关键的约束——**剥夺主 agent 的执行能力，强制隔离**。主 agent 变成纯粹的计划者和观察者。
+**subagent-isolation** 是 [Pi Agent](https://github.com/earendil-works/pi) 的扩展。Pi 本身已经支持子 agent，但这个扩展做了一个关键的约束——**剥夺主 agent 的执行能力，强制隔离**。主 agent 变成纯粹的计划者和观察者。
 
 ---
 
