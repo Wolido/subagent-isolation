@@ -1,0 +1,61 @@
+{
+  "name": "subagent-isolation",
+  "version": "0.1.0",
+  "description": "A pi extension that delegates tasks to a specialized subagent in an isolated pi process.",
+  "license": "MIT",
+  "author": "Wolido",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "subagent",
+    "isolation"
+  ],
+  "homepage": "https://github.com/Wolido/subagent-isolation#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Wolido/subagent-isolation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Wolido/subagent-isolation/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "@types/node": "^20.0.0",
+    "typebox": "*",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}

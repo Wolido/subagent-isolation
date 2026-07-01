@@ -16,18 +16,18 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { Message } from "@mariozechner/pi-ai";
-import { StringEnum } from "@mariozechner/pi-ai";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { Message } from "@earendil-works/pi-ai";
+import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	type ExtensionAPI,
 	getMarkdownTheme,
 	withFileMutationQueue,
 	getAgentDir,
 	parseFrontmatter,
-} from "@mariozechner/pi-coding-agent";
-import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+} from "@earendil-works/pi-coding-agent";
+import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 // ===== UUID v7 helper =====
 
@@ -168,19 +168,6 @@ function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryResult {
 		for (const agent of projectAgents) agentMap.set(agent.name, agent);
 	}
 	return { agents: Array.from(agentMap.values()), projectAgentsDir };
-}
-
-function formatAgentList(
-	agents: AgentConfig[],
-	maxItems: number,
-): { text: string; remaining: number } {
-	if (agents.length === 0) return { text: "none", remaining: 0 };
-	const listed = agents.slice(0, maxItems);
-	const remaining = agents.length - listed.length;
-	return {
-		text: listed.map((a) => `${a.name} (${a.source}): ${a.description}`).join("; "),
-		remaining,
-	};
 }
 
 // ===== Original index.ts =====
@@ -491,6 +478,7 @@ async function runSingleAgent(
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
 	// MODIFIED: inject per-agent skill isolation
+	const skillWarnings: string[] = [];
 	if (agent.skills !== undefined) {
 		args.push("--no-skills");
 		if (agent.skills.length > 0) {
@@ -501,6 +489,18 @@ async function runSingleAgent(
 				    : path.isAbsolute(skillPath)
 				        ? skillPath
 				        : path.resolve(baseDir, skillPath);
+
+				// Reject relative skill paths that escape baseDir
+				if (!skillPath.startsWith("~/") && !path.isAbsolute(skillPath)) {
+					const rel = path.relative(baseDir, resolved);
+					if (rel === ".." || rel.startsWith(".." + path.sep)) {
+						skillWarnings.push(
+							`[subagent-isolation] skill path "${skillPath}" resolves outside the agent base directory and was ignored.\n`,
+						);
+						continue;
+					}
+				}
+
 				args.push("--skill", resolved);
 			}
 		}
@@ -515,7 +515,7 @@ async function runSingleAgent(
 		task,
 		exitCode: 0,
 		messages: [],
-		stderr: "",
+		stderr: skillWarnings.join(""),
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
 		model: agent.model || (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined),
 		step,

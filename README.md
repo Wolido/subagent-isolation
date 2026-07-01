@@ -30,16 +30,13 @@
 
 ## Installation
 
-Requires `pi` to be installed and available on your `$PATH`.
-
-Clone (or copy) the extension into your `pi` extensions directory:
+This extension is packaged as a [Pi Package](https://github.com/earendil-works/pi-coding-agent). Install it directly inside `pi`:
 
 ```bash
-git clone https://github.com/your-username/subagent-isolation.git \
-  ~/.pi/agent/extensions/subagent-isolation
+pi install npm:subagent-isolation
 ```
 
-Or manually place the files so that `~/.pi/agent/extensions/subagent-isolation/index.ts` exists.
+This uses the `pi` npm loader, which resolves the package's `pi.extensions` entry points and aliases core imports to the installed `pi` runtime packages. No manual clone or global `npm install` is required.
 
 ## Usage
 
@@ -127,10 +124,18 @@ These variables control runtime behavior. They are propagated into every subagen
 ## Project Structure
 
 ```
-~/.pi/agent/extensions/subagent-isolation/
-├── index.ts      # Main extension source
-└── README.md     # This file
+subagent-isolation/
+├── src/
+│   └── index.ts      # Main extension source
+├── examples/
+│   └── agents/       # Example agent definitions (coder, reviewer, writer)
+├── package.json      # npm package manifest
+├── tsconfig.json     # TypeScript configuration
+├── README.md         # This file
+└── LICENSE           # MIT license
 ```
+
+The extension is loaded by `pi` through the `extensions` array under the top-level `pi` field declared in `package.json`.
 
 ## License
 
