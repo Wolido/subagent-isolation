@@ -14,7 +14,9 @@
     "ADVANCED.md",
     "ADVANCED.en.md",
     "LICENSE",
-    "examples/pi"
+    "examples/pi",
+    "examples/README.md",
+    "examples/README.en.md"
   ],
   "keywords": [
     "pi-package",
