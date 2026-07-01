@@ -10,29 +10,32 @@
 
 </div>
 
-> Context is the LLM's working memory. Every tool call spends it. When it runs out, intelligence collapses.
+The main agent can't touch code. No `write`, no `edit`, no `bash`. It only has four read-only tools — `read`, `grep`, `find`, `ls` — plus a `subagent` tool for delegation. All file changes, shell commands, and execution logic go to subagents. Each subagent runs in its own `pi` process with its own system prompt and skills. No shared state between the main agent and subagents, or between subagents.
 
-Is your main agent thinking — or just taking notes? During a single refactor, after a dozen `read`, `edit`, and `bash` calls, the context window fills up with tool traces and code snippets. The original task description gets pushed to the middle of the context — exactly where models pay the least attention.
-
-This isn't speculation. It's a well-documented pattern:
-
-- **"Lost in the Middle"**: LLMs pay far more attention to the beginning and end of their context than to the middle (Stanford, TACL 2024). The more tool-call traces pile up, the more your critical task information drifts into the "middle blind spot" — and the model stops seeing it.
-- **Cliff-edge decay**: Intelligence drops over **30%** beyond the effective context length.
-- **Irreversible compression**: Summarize or compress to free up space, and the cut details are gone for good — you can't recover precision from a summary.
-
-Context management isn't an optimization. It's a survival requirement for LLM agents.
-
-**subagent-isolation** is an extension for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). It delegates concrete execution to isolated subagents, each running in its own `pi` process with a clean context and precisely scoped capabilities. The main agent's context holds only two things: what to do, and what happened — all the intermediate tool-call noise stays inside the subagent process.
+**subagent-isolation** is an extension for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). Pi already supports subagents. This extension adds one constraint — **it strips the main agent of execution tools and enforces isolation**. The main agent becomes a planner and observer, nothing more.
 
 ---
 
-## The problem it solves
+## Why this matters
+
+When one agent reads code, edits files, and runs tests all in the same session, tool-call traces pile up fast. After a few rounds of `read`, `edit`, and `bash`, most of the context is tool output fragments. The original task drifts out of focus, and the model starts reasoning on stale context.
+
+Split the work:
+
+- **The main agent** does two things: understand what you want, and delegate. Its context stays clean.
+- **Each subagent** gets one clear task, a precise set of tools, and a fresh context. It finishes and exits, leaving no traces behind.
+
+Context becomes a pipeline, not a landfill.
+
+---
+
+## Before / After
 
 | Before | After |
 |--------|-------|
-| The main agent plans and executes; tool-call noise rapidly fills the context | The main agent only plans and delegates; its context stays clean |
-| All skills and tools pile into the main agent and interfere | Each subagent loads only the skills required for its task |
-| Complex tasks snowball inside one window and lose focus | Subagents run in isolated processes, finish, and release |
+| One agent plans and executes; tool traces fill the context | Main agent only plans and delegates; context stays clean |
+| All skills and tools pile up in one agent and interfere | Each subagent loads only the skills it needs |
+| Complex tasks snowball in one window and lose focus | Subagents run in isolated processes, finish, and release |
 
 ---
 
@@ -50,7 +53,7 @@ A typical task flows like this:
 3. The subagent receives only the delegated task and its own config, then performs the work.
 4. The subagent returns its result and exits; the main agent decides what's next.
 
-Isolation is guaranteed by:
+Four levels of isolation:
 
 - **Process isolation**: every subagent spawns a fresh `pi --mode json` process. Its system prompt is written to a temp file and injected via `--append-system-prompt`, so subagents never pollute each other.
 - **Context isolation**: the subagent sees only the task you delegated, not the tool-call trail from the main agent.
