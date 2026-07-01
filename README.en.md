@@ -121,11 +121,11 @@ If you need to continue the same task, the subagent output ends with a session I
 
 The GitHub repo ships three ready-to-reference agents in [`examples/agents/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/agents):
 
-| Agent | Purpose | Tools |
-|-------|---------|-------|
-| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/coder.md) | Write, modify, and validate code | `read, write, edit, bash, grep, find, ls` |
-| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/reviewer.md) | Read-only review with actionable feedback | `read, grep, find, ls` |
-| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/writer.md) | Write docs, READMEs, commit messages | `read, write, edit, grep, find, ls` |
+| Agent | Purpose | Tools | Skill |
+|-------|---------|-------|-------|
+| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/coder.md) | Write, modify, and validate code | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
+| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/reviewer.md) | Read-only review with actionable feedback | `read, grep, find, ls` | _(none)_ |
+| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/writer.md) | Write docs, READMEs, commit messages | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |
 
 Copy the `.md` files you need into `~/.pi/agent/agents/` (user-scoped) or `.pi/agents/` (project-scoped).
 
@@ -180,7 +180,7 @@ cp examples/agents/*.md ~/.pi/agent/agents/
 Then start the main agent with:
 
 ```bash
-pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/ --skill ~/.pi/agent/skills/github-issue-to-pr --skill ~/.pi/agent/skills/writing-skills --skill ~/.pi/agent/skills/magi-deliberation
+pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/
 ```
 
 What each flag does:
@@ -188,10 +188,7 @@ What each flag does:
 - `--tools read,grep,find,ls,subagent,todo,OpenAaaS`: restricts the main agent to these tools. `subagent` delegates work, `todo` manages tasks, `OpenAaaS` talks to the model, and `read/grep/find/ls` inspect the repo structure and existing agents.
 - `--no-skills`: disables default skill loading to keep the main agent context clean.
 - `--append-system-prompt ~/.pi/agent/master.md`: appends the main agent system prompt to the default prompt.
-- `--skill ~/.pi/agent/skills/brainstorming/`: loads the brainstorming skill.
-- `--skill ~/.pi/agent/skills/github-issue-to-pr`: loads the GitHub issue-to-PR skill.
-- `--skill ~/.pi/agent/skills/writing-skills`: loads the writing assistance skill.
-- `--skill ~/.pi/agent/skills/magi-deliberation`: loads the deep deliberation skill.
+- `--skill ~/.pi/agent/skills/brainstorming/`: loads the brainstorming skill for the main agent. Only the main agent's skill is specified here — subagents (coder, writer) load their skills automatically via the `skills:` frontmatter field.
 
 If you only want them for the current project, place them in `.pi/agents/`; the extension will load these project-level agents when invoking `subagent`.
 
@@ -209,6 +206,34 @@ The main agent keeps only "what to do" and "what happened." All intermediate too
 
 ---
 
+## Example skills
+
+The GitHub repo ships three ready-to-use skills in [`examples/skills/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills):
+
+| Skill | Used by | Description |
+|-------|---------|-------------|
+| [`brainstorming`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/brainstorming) | Main agent | Turn ideas into fully formed designs through collaborative dialogue |
+| [`systematic-debugging`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/systematic-debugging) | `coder` | Find root cause before attempting any fix (4-phase process) |
+| [`writing-clearly-and-concisely`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/writing-clearly-and-concisely) | `writer` | Refine prose with clarity rules, AI-pattern detection, and voice injection |
+
+Copy them to `~/.pi/agent/skills/`:
+
+```bash
+mkdir -p ~/.pi/agent/skills
+cp -r examples/skills/brainstorming ~/.pi/agent/skills/
+cp -r examples/skills/systematic-debugging ~/.pi/agent/skills/
+cp -r examples/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
+```
+
+Skills can be loaded in two ways:
+
+- **Subagents**: declare in the `skills:` frontmatter field (e.g. coder's `skills: systematic-debugging`). Pi loads them automatically when spawning the subagent.
+- **Main agent**: load via the `--skill` CLI flag (e.g. `--skill ~/.pi/agent/skills/brainstorming/`).
+
+Skill discovery mirrors agent discovery: `~/.pi/agent/skills/` (user scope) and `.pi/skills/` (project scope). Pi resolves skill names in the `skills:` field against these directories.
+
+---
+
 ## Advanced usage
 
 If you need to construct `subagent` calls manually, reuse a `sessionId`, view the full frontmatter fields, or tune environment variables, see [ADVANCED.en.md](ADVANCED.en.md).
@@ -222,6 +247,10 @@ If you need to construct `subagent` calls manually, reuse a `sessionId`, view th
   - `coder.md`
   - `reviewer.md`
   - `writer.md`
+- `examples/skills/` — example skill definitions
+  - `brainstorming/`
+  - `systematic-debugging/`
+  - `writing-clearly-and-concisely/`
 - `package.json` — npm package manifest
 - `tsconfig.json` — TypeScript configuration
 - `README.md` / `README.en.md` — documentation

@@ -2,6 +2,7 @@
 name: writer
 description: Writes and edits documentation, READMEs, commit messages, and PR descriptions.
 tools: read, write, edit, grep, find, ls
+skills: writing-clearly-and-concisely
 canDelegate: false
 ---
 

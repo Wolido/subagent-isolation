@@ -13,7 +13,9 @@
     "README.en.md",
     "ADVANCED.md",
     "ADVANCED.en.md",
-    "LICENSE"
+    "LICENSE",
+    "examples/agents",
+    "examples/skills"
   ],
   "keywords": [
     "pi-package",

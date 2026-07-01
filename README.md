@@ -121,11 +121,11 @@ pi
 
 GitHub 仓库的 [`examples/agents/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/agents) 提供了三个可直接参考的 agent：
 
-| Agent | 作用 | 可用工具 |
-|-------|------|----------|
-| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/coder.md) | 写代码、改代码、跑验证 | `read, write, edit, bash, grep, find, ls` |
-| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/reviewer.md) | 只读评审，输出可操作的反馈 | `read, grep, find, ls` |
-| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/writer.md) | 写文档、改 README、生成 commit message | `read, write, edit, grep, find, ls` |
+| Agent | 作用 | 可用工具 | 加载的 skill |
+|-------|------|----------|-------------|
+| [`coder`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/coder.md) | 写代码、改代码、跑验证 | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
+| [`reviewer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/reviewer.md) | 只读评审，输出可操作的反馈 | `read, grep, find, ls` | _(无)_ |
+| [`writer`](https://github.com/Wolido/subagent-isolation/blob/main/examples/agents/writer.md) | 写文档、改 README、生成 commit message | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |
 
 把它们复制到 `~/.pi/agent/agents/`（用户级）或项目内的 `.pi/agents/`（项目级）即可使用。
 
@@ -180,7 +180,7 @@ cp examples/agents/*.md ~/.pi/agent/agents/
 然后使用以下命令启动主 agent：
 
 ```bash
-pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/ --skill ~/.pi/agent/skills/github-issue-to-pr --skill ~/.pi/agent/skills/writing-skills --skill ~/.pi/agent/skills/magi-deliberation
+pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/
 ```
 
 各参数含义：
@@ -188,10 +188,9 @@ pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-
 - `--tools read,grep,find,ls,subagent,todo,OpenAaaS`：主 agent 只允许使用这些工具。`subagent` 用于委派任务，`todo` 用于任务管理，`OpenAaaS` 用于模型交互，`read/grep/find/ls` 用于查看仓库结构和已有 agent。
 - `--no-skills`：不加载默认 skills，保持主 agent 上下文干净。
 - `--append-system-prompt ~/.pi/agent/master.md`：把主 agent 的系统提示追加到默认提示后。
-- `--skill ~/.pi/agent/skills/brainstorming/`：加载头脑风暴 skill。
-- `--skill ~/.pi/agent/skills/github-issue-to-pr`：加载 GitHub issue 转 PR skill。
-- `--skill ~/.pi/agent/skills/writing-skills`：加载写作辅助 skill。
-- `--skill ~/.pi/agent/skills/magi-deliberation`：加载深度思考 skill。
+- `--skill ~/.pi/agent/skills/brainstorming/`：加载头脑风暴 skill（主 agent 用它做规划）。每个 agent 只加载任务需要的 skill，能力精确隔离。
+
+子 agent（`coder`、`writer`）通过 frontmatter 中的 `skills:` 字段自动加载各自的 skill，无需在启动命令中指定。
 
 如果只想在当前项目生效，把 agent 放到 `.pi/agents/` 目录即可；扩展会在调用 `subagent` 时自动加载这些项目级 agent。
 
@@ -209,6 +208,34 @@ pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-
 
 ---
 
+## 示例 skills
+
+GitHub 仓库的 [`examples/skills/`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills) 提供了三个可直接使用的 skill：
+
+| Skill | 使用者 | 描述 |
+|-------|--------|------|
+| [`brainstorming`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/brainstorming) | 主 agent | 通过协作对话把想法变成完整设计 |
+| [`systematic-debugging`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/systematic-debugging) | `coder` | 修 bug 前先找根因（四阶段流程） |
+| [`writing-clearly-and-concisely`](https://github.com/Wolido/subagent-isolation/tree/main/examples/skills/writing-clearly-and-concisely) | `writer` | 用简洁规则、AI 痕迹检测和人味注入打磨文字 |
+
+把这些 skill 复制到 `~/.pi/agent/skills/`：
+
+```bash
+mkdir -p ~/.pi/agent/skills
+cp -r examples/skills/brainstorming ~/.pi/agent/skills/
+cp -r examples/skills/systematic-debugging ~/.pi/agent/skills/
+cp -r examples/skills/writing-clearly-and-concisely ~/.pi/agent/skills/
+```
+
+Skill 的加载方式有两种：
+
+- **子 agent**：在 frontmatter 中用 `skills:` 字段声明（如 coder 的 `skills: systematic-debugging`），pi 启动子 agent 时自动加载。
+- **主 agent**：在命令行用 `--skill` 标志加载（如 `--skill ~/.pi/agent/skills/brainstorming/`）。
+
+Skill 搜索规则与 agent 相同：`~/.pi/agent/skills/`（用户级）和 `.pi/skills/`（项目级），子 agent 会根据 `skills:` 字段中的名称在这两个目录中查找匹配的 skill。
+
+---
+
 ## 进阶用法
 
 如果需要手写 `subagent` 调用、复用 `sessionId`、查看完整 frontmatter 字段或调整环境变量，请参阅 [ADVANCED.md](ADVANCED.md)。
@@ -222,6 +249,10 @@ pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-
   - `coder.md`
   - `reviewer.md`
   - `writer.md`
+- `examples/skills/` — 示例 skill 定义
+  - `brainstorming/`
+  - `systematic-debugging/`
+  - `writing-clearly-and-concisely/`
 - `package.json` — npm 包清单
 - `tsconfig.json` — TypeScript 配置
 - `README.md` / `README.en.md` — 说明文档

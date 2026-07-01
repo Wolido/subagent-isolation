@@ -2,6 +2,7 @@
 name: coder
 description: Writes, modifies, and validates code in response to concrete delegated tasks.
 tools: read, write, edit, bash, grep, find, ls
+skills: systematic-debugging
 canDelegate: false
 ---
 
