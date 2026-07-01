@@ -112,8 +112,13 @@ Use it as-is, or tweak it to fit your workflow.
 ### 3. Assign the task in natural language
 
 ```bash
-pi
+pi --tools read,grep,find,ls,subagent \
+   --no-skills \
+   --append-system-prompt ~/.pi/agent/master.md \
+   --skill ~/.pi/agent/skills/brainstorming/
 ```
+
+This restricts the main agent to read-only tools plus subagent delegation, loads the main agent prompt, and activates the brainstorming skill.
 
 Then tell the main agent:
 
@@ -177,15 +182,18 @@ cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 Then start the main agent with:
 
 ```bash
-pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/
+pi --tools read,grep,find,ls,subagent \
+   --no-skills \
+   --append-system-prompt ~/.pi/agent/master.md \
+   --skill ~/.pi/agent/skills/brainstorming/
 ```
 
 What each flag does:
 
-- `--tools read,grep,find,ls,subagent,todo,OpenAaaS`: restricts the main agent to these tools. `subagent` delegates work, `todo` manages tasks, `OpenAaaS` talks to the model, and `read/grep/find/ls` inspect the repo structure and existing agents.
+- `--tools read,grep,find,ls,subagent`: read, search, list, and delegate only. No `write`, `edit`, or `bash`, so the main agent cannot modify files or run commands itself.
 - `--no-skills`: disables default skill loading to keep the main agent context clean.
 - `--append-system-prompt ~/.pi/agent/master.md`: appends the main agent system prompt to the default prompt.
-- `--skill ~/.pi/agent/skills/brainstorming/`: loads the brainstorming skill for the main agent. Only the main agent's skill is specified here — subagents (coder, writer) load their skills automatically via the `skills:` frontmatter field.
+- `--skill ~/.pi/agent/skills/brainstorming/`: loads the brainstorming skill for task planning.
 
 If you only want them for the current project, place them in `.pi/agents/`; the extension will load these project-level agents when invoking `subagent`.
 

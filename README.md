@@ -112,8 +112,13 @@ cp -r examples/pi/agent/skills/* ~/.pi/agent/skills/
 ### 3. 用自然语言指派任务
 
 ```bash
-pi
+pi --tools read,grep,find,ls,subagent \
+   --no-skills \
+   --append-system-prompt ~/.pi/agent/master.md \
+   --skill ~/.pi/agent/skills/brainstorming/
 ```
+
+这条命令把主 agent 限制为只读工具 + subagent 委派，加载主 agent 提示词和 brainstorming skill。
 
 启动后，直接对主 agent 说：
 
@@ -177,15 +182,18 @@ cp examples/pi/agent/agents/*.md ~/.pi/agent/agents/
 然后使用以下命令启动主 agent：
 
 ```bash
-pi --tools read,grep,find,ls,subagent,todo,OpenAaaS --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/
+pi --tools read,grep,find,ls,subagent \
+   --no-skills \
+   --append-system-prompt ~/.pi/agent/master.md \
+   --skill ~/.pi/agent/skills/brainstorming/
 ```
 
 各参数含义：
 
-- `--tools read,grep,find,ls,subagent,todo,OpenAaaS`：主 agent 只允许使用这些工具。`subagent` 用于委派任务，`todo` 用于任务管理，`OpenAaaS` 用于模型交互，`read/grep/find/ls` 用于查看仓库结构和已有 agent。
+- `--tools read,grep,find,ls,subagent`：只允许读、搜、列目录和委派子 agent。没有 `write`、`edit`、`bash`，主 agent 不能自己改代码或跑命令。
 - `--no-skills`：不加载默认 skills，保持主 agent 上下文干净。
 - `--append-system-prompt ~/.pi/agent/master.md`：把主 agent 的系统提示追加到默认提示后。
-- `--skill ~/.pi/agent/skills/brainstorming/`：加载头脑风暴 skill（主 agent 用它做规划）。每个 agent 只加载任务需要的 skill，能力精确隔离。
+- `--skill ~/.pi/agent/skills/brainstorming/`：加载 brainstorming skill，主 agent 用它做任务规划。
 
 子 agent（`coder`、`writer`）通过 frontmatter 中的 `skills:` 字段自动加载各自的 skill，无需在启动命令中指定。
 
