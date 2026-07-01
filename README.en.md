@@ -120,6 +120,14 @@ pi --tools read,grep,find,ls,subagent \
 
 This restricts the main agent to read-only tools plus subagent delegation, loads the main agent prompt, and activates the brainstorming skill.
 
+For daily use, add an alias to your shell config. For example, in `~/.zshrc`:
+
+```bash
+alias pp='pi --tools read,grep,find,ls,subagent --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/'
+```
+
+Then just type `pp` to start the main agent.
+
 Then tell the main agent:
 
 > Refactor the auth middleware to use async/await.

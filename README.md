@@ -120,6 +120,14 @@ pi --tools read,grep,find,ls,subagent \
 
 这条命令把主 agent 限制为只读工具 + subagent 委派，加载主 agent 提示词和 brainstorming skill。
 
+为了方便日常使用，建议在 shell 配置里给它设一个 alias。比如在 `~/.zshrc` 中加入：
+
+```bash
+alias pp='pi --tools read,grep,find,ls,subagent --no-skills --append-system-prompt ~/.pi/agent/master.md --skill ~/.pi/agent/skills/brainstorming/'
+```
+
+之后直接输入 `pp` 即可启动主 agent。
+
 启动后，直接对主 agent 说：
 
 > 把认证中间件重构为 async/await。
