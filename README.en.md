@@ -10,11 +10,19 @@
 
 </div>
 
-> Let the main agent focus on decisions. Delegate the dirty work to isolated subagents.
+> Context is the LLM's working memory. Every tool call spends it. When it runs out, intelligence collapses.
 
-Is your main agent drowning in implementation details? During a single refactor, it reads files, edits code, runs tests, parses errors... Dozens of tool calls later, the context window is stuffed with noise and the original goal is buried.
+Is your main agent thinking — or just taking notes? During a single refactor, after a dozen `read`, `edit`, and `bash` calls, the context window fills up with tool traces and code snippets. The original task description gets pushed to the middle of the context — exactly where models pay the least attention.
 
-**subagent-isolation** is an extension for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). It delegates concrete execution to specialized subagents, each running in its own isolated `pi` process with a clean context and only the skills it needs.
+This isn't speculation. It's a well-documented pattern:
+
+- **"Lost in the Middle"**: LLMs pay far more attention to the beginning and end of their context than to the middle (Stanford, TACL 2024). The more tool-call traces pile up, the more your critical task information drifts into the "middle blind spot" — and the model stops seeing it.
+- **Cliff-edge decay**: Intelligence drops over **30%** beyond the effective context length.
+- **Irreversible compression**: Summarize or compress to free up space, and the cut details are gone for good — you can't recover precision from a summary.
+
+Context management isn't an optimization. It's a survival requirement for LLM agents.
+
+**subagent-isolation** is an extension for [Pi Agent](https://github.com/earendil-works/pi-coding-agent). It delegates concrete execution to isolated subagents, each running in its own `pi` process with a clean context and precisely scoped capabilities. The main agent's context holds only two things: what to do, and what happened — all the intermediate tool-call noise stays inside the subagent process.
 
 ---
 
@@ -22,10 +30,9 @@ Is your main agent drowning in implementation details? During a single refactor,
 
 | Before | After |
 |--------|-------|
-| The main agent plans and executes, so tool-call noise quickly eats the context | The main agent only plans and delegates; its context stays clean |
-| All skills and tools pile into the main agent and interfere with each other | Each subagent loads only the skills required for its task |
-| Complex tasks snowball inside one window and lose focus | Subagents run in isolated processes, finish, and release resources |
-| Worried about runaway recursion or overreach | Hard recursion limit of 2; `canDelegate: false` stops delegation cold |
+| The main agent plans and executes; tool-call noise rapidly fills the context | The main agent only plans and delegates; its context stays clean |
+| All skills and tools pile into the main agent and interfere | Each subagent loads only the skills required for its task |
+| Complex tasks snowball inside one window and lose focus | Subagents run in isolated processes, finish, and release |
 
 ---
 
@@ -41,14 +48,14 @@ A typical task flows like this:
 1. You describe the task to the main agent.
 2. The main agent uses the `subagent` tool to spawn an isolated `pi` process.
 3. The subagent receives only the delegated task and its own config, then performs the work.
-4. The subagent returns its result and exits; the main agent decides what’s next.
+4. The subagent returns its result and exits; the main agent decides what's next.
 
 Isolation is guaranteed by:
 
 - **Process isolation**: every subagent spawns a fresh `pi --mode json` process. Its system prompt is written to a temp file and injected via `--append-system-prompt`, so subagents never pollute each other.
 - **Context isolation**: the subagent sees only the task you delegated, not the tool-call trail from the main agent.
 - **Capability isolation**: the `tools` and `skills` fields give each subagent a precise, minimal toolbox.
-- **Controlled recursion**: default max recursion depth is 2; set `canDelegate: false` to prevent a subagent from spawning further subagents.
+- **Recursion boundary**: subagents can be configured to prevent further delegation, keeping task scope manageable.
 
 ---
 
@@ -111,7 +118,7 @@ Then tell the main agent:
 
 > Refactor the auth middleware to use async/await.
 
-The main agent will automatically call the `coder` subagent via the `subagent` tool. You don’t need to write JSON or worry about `sessionId` — the extension handles spawning and cleanup.
+The main agent will automatically call the `coder` subagent via the `subagent` tool. You don't need to write JSON or worry about `sessionId` — the extension handles spawning and cleanup.
 
 If you need to continue the same task, the subagent output ends with a session ID. See [ADVANCED.en.md](ADVANCED.en.md) for the exact format and reuse rules.
 
