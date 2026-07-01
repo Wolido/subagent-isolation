@@ -10,6 +10,7 @@ This directory contains example agent definitions and skill files that demonstra
 
 | Agent | Purpose | Tools | Skill |
 |-------|---------|-------|-------|
+| `master` | Main agent system prompt for planning and delegation | _(read-only, delegates to subagents)_ | `brainstorming` |
 | `coder` | Implements code changes, refactors, and tests | `read, write, edit, bash, grep, find, ls` | `systematic-debugging` |
 | `reviewer` | Reviews changes and produces actionable feedback | `read, grep, find, ls` (read-only) | _(none)_ |
 | `writer` | Writes documentation, READMEs, commit messages, PR descriptions | `read, write, edit, grep, find, ls` | `writing-clearly-and-concisely` |

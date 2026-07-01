@@ -180,6 +180,8 @@ Rules:
 3. Wait for the result before deciding the next step.
 ```
 
+See examples/agents/master.md for the full example — copy it to ~/.pi/agent/master.md.
+
 Copy the example agents to `~/.pi/agent/agents/`:
 
 ```bash

@@ -180,6 +180,8 @@ Agent 搜索规则：
 3. 收到结果后再决定下一步，不要一次性把所有任务塞给子 agent。
 ```
 
+完整的示例文件见 examples/agents/master.md，可直接复制到 ~/.pi/agent/master.md 使用。
+
 把示例 agent 复制到 `~/.pi/agent/agents/`：
 
 ```bash
