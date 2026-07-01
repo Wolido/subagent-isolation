@@ -101,22 +101,7 @@ cp examples/pi/agent/master.md ~/.pi/agent/master.md
 cp -r examples/pi/agent/skills/* ~/.pi/agent/skills/
 ```
 
-其中 `coder.md` 的内容如下：
-
-```markdown
----
-name: coder
-description: 编写和修改代码，完成具体的开发任务。
-tools: read, write, edit, bash, grep, find, ls
-canDelegate: false
----
-
-你是一名资深工程师。接到任务后：
-1. 先定位相关代码；
-2. 做最小化、聚焦的修改；
-3. 运行相关测试或类型检查；
-4. 总结改了什么，并输出 `[coder: done]`。
-```
+各 agent 的具体定义见 `examples/pi/agent/agents/` 目录，可按需修改。
 
 直接复制即可使用，也可以根据自己的需求调整。
 

@@ -101,22 +101,7 @@ cp examples/pi/agent/master.md ~/.pi/agent/master.md
 cp -r examples/pi/agent/skills/* ~/.pi/agent/skills/
 ```
 
-The `coder.md` file looks like this:
-
-```markdown
----
-name: coder
-description: Writes and edits code for concrete development tasks.
-tools: read, write, edit, bash, grep, find, ls
-canDelegate: false
----
-
-You are a senior engineer. When you receive a task:
-1. Locate the relevant code.
-2. Make minimal, focused changes.
-3. Run relevant tests or type checks.
-4. Summarize what changed and end with `[coder: done]`.
-```
+See `examples/pi/agent/agents/` for the agent definitions; customize as needed.
 
 Use it as-is, or tweak it to fit your workflow.
 
