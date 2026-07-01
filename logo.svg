@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- outer main agent -->
+  <rect x="10" y="10" width="100" height="100" rx="16" fill="none" stroke="#1f2937" stroke-width="6"/>
+  <!-- three isolated subagents -->
+  <rect x="24" y="24" width="28" height="28" rx="6" fill="#93c5fd"/>
+  <rect x="24" y="68" width="28" height="28" rx="6" fill="#93c5fd"/>
+  <rect x="68" y="46" width="28" height="28" rx="6" fill="#93c5fd"/>
+</svg>

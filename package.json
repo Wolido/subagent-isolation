@@ -9,6 +9,7 @@
   "types": "src/index.ts",
   "files": [
     "src",
+    "logo.svg",
     "README.md",
     "README.en.md",
     "ADVANCED.md",

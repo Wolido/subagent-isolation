@@ -1,9 +1,13 @@
 <div align="right"><a href="README.md">中文</a></div>
 
+<div align="center"><img src="logo.svg" alt="subagent-isolation logo" width="120"></div>
+
 # subagent-isolation
 
 <div align="center">
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)]()
+[![Pi Package](https://img.shields.io/badge/Pi_Package-8B5CF6)]()
 [![npm version](https://img.shields.io/npm/v/subagent-isolation)](https://www.npmjs.com/package/subagent-isolation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
