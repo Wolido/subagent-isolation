@@ -21,14 +21,23 @@ The main agent can't touch code. No `write`, no `edit`, no `bash`. It only has f
 
 ## Why this matters
 
-When one agent reads code, edits files, and runs tests all in the same session, tool-call traces pile up fast. After a few rounds of `read`, `edit`, and `bash`, most of the context is tool output fragments. The original task drifts out of focus, and the model starts reasoning on stale context.
+A model's effective context is not unlimited. When one agent reads code, edits files, and runs tests all at once, tool traces, errors, and intermediate results pile up fast. Once total context exceeds the threshold the model can handle reliably, reasoning quality drops — key details get drowned, work gets repeated, and decisions are made from noisy context.
 
-Split the work:
+The point of a subagent system is to split that ever-growing context into smaller pieces. Each agent handles only its own slice, so no single conversation is dragged down by historical noise.
 
-- **The main agent** does two things: understand what you want, and delegate. Its context stays clean.
-- **Each subagent** gets one clear task, a precise set of tools, and a fresh context. It finishes and exits, leaving no traces behind.
+## How this differs from plain subagents
 
-Context becomes a pipeline, not a landfill.
+Many subagent implementations are just “spawn a tool call inside the main agent.” The subagent still reuses the main agent's prompt and skills, and the main agent still keeps write and shell access — isolation is optional and partial.
+
+subagent-isolation enforces complete isolation:
+
+- **Process isolation**: every subagent starts in its own `pi` process.
+- **Prompt isolation**: each subagent has its own agent definition file (e.g., `coder.md`), not the main agent's `master.md`.
+- **Skill isolation**: the main agent and each subagent load only their own skills, with no cross-contamination.
+- **Execution isolation**: the main agent loses `write`, `edit`, and `bash`; it can only delegate.
+- **Independent configuration**: each agent defines its own `tools` and `skills`, controlling exactly what it can and cannot do.
+
+Plain subagents split work. subagent-isolation splits everything.
 
 ---
 
@@ -36,9 +45,9 @@ Context becomes a pipeline, not a landfill.
 
 | Before | After |
 |--------|-------|
-| One agent plans and executes; tool traces fill the context | Main agent only plans and delegates; context stays clean |
-| All skills and tools pile up in one agent and interfere | Each subagent loads only the skills it needs |
-| Complex tasks snowball in one window and lose focus | Subagents run in isolated processes, finish, and release |
+| One agent plans and executes; context growth degrades reasoning | Main agent only plans and delegates; each subagent handles its own slice |
+| Main agent keeps write and shell access; isolation is partial | Main agent loses `write`, `edit`, and `bash`; subagents run in isolated processes |
+| All skills and tools pile up in one agent and interfere | Each subagent loads only the skills and tools it needs |
 
 ---
 
