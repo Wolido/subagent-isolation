@@ -1,6 +1,6 @@
 {
   "name": "subagent-isolation",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "A pi extension that delegates tasks to a specialized subagent in an isolated pi process.",
   "license": "MIT",
   "author": "Wolido",
