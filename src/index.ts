@@ -434,6 +434,29 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
+/** Replicate Pi's cwd encoding for the default session directory. */
+function encodeCwdForSessions(cwd: string): string {
+	const resolvedCwd = path.resolve(cwd);
+	return `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
+}
+
+/** Compute Pi's default session directory for a given cwd. */
+function getDefaultSessionDirForCwd(cwd: string): string {
+	return path.join(getAgentDir(), "sessions", encodeCwdForSessions(cwd));
+}
+
+/**
+ * Build the isolated session directory for a subagent.
+ * Uses the main agent's session dir when available; otherwise falls back to
+ * Pi's default session directory for the effective cwd.
+ */
+function getSubagentSessionDir(cwd: string, mainSessionDir: string | undefined): string {
+	const baseDir = mainSessionDir && mainSessionDir.trim().length > 0
+		? mainSessionDir
+		: getDefaultSessionDirForCwd(cwd);
+	return path.join(baseDir, "subagents");
+}
+
 async function runSingleAgent(
 	defaultCwd: string,
 	agents: AgentConfig[],
@@ -446,6 +469,7 @@ async function runSingleAgent(
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
 	parentModel?: CurrentModel,
+	mainSessionDir?: string,
 ): Promise<SingleResult> {
 	const effectiveSessionId = sessionId ?? uuidv7();
 	const agent = agents.find((a) => a.name === agentName);
@@ -505,6 +529,11 @@ async function runSingleAgent(
 			}
 		}
 	}
+
+	// Isolate subagent sessions from the main agent's session directory.
+	const effectiveCwd = cwd ?? defaultCwd;
+	const subagentSessionDir = getSubagentSessionDir(effectiveCwd, mainSessionDir);
+	args.push("--session-dir", subagentSessionDir);
 
 	let tmpPromptDir: string | null = null;
 	let tmpPromptPath: string | null = null;
@@ -975,6 +1004,7 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 
+			const mainSessionDir = ctx.sessionManager?.getSessionDir();
 			const result = await runSingleAgent(
 				ctx.cwd,
 				agents,
@@ -987,6 +1017,7 @@ export default function (pi: ExtensionAPI) {
 				onUpdate,
 				makeDetails,
 				ctx.model,
+				mainSessionDir,
 			);
 			const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
 			if (isError) {
