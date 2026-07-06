@@ -434,27 +434,20 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
-/** Replicate Pi's cwd encoding for the default session directory. */
-function encodeCwdForSessions(cwd: string): string {
-	const resolvedCwd = path.resolve(cwd);
-	return `--${resolvedCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
-}
-
-/** Compute Pi's default session directory for a given cwd. */
-function getDefaultSessionDirForCwd(cwd: string): string {
-	return path.join(getAgentDir(), "sessions", encodeCwdForSessions(cwd));
-}
-
 /**
  * Build the isolated session directory for a subagent.
- * Uses the main agent's session dir when available; otherwise falls back to
- * Pi's default session directory for the effective cwd.
+ * All subagent sessions live under a dedicated root, independent of the main
+ * agent's session directory and independent of cwd:
+ *   ~/.pi/agent/subagent-sessions/<session-id>/
  */
-function getSubagentSessionDir(cwd: string, mainSessionDir: string | undefined): string {
-	const baseDir = mainSessionDir && mainSessionDir.trim().length > 0
-		? mainSessionDir
-		: getDefaultSessionDirForCwd(cwd);
-	return path.join(baseDir, "subagents");
+function getSubagentSessionDir(sessionId: string): string {
+	const root = path.resolve(path.join(getAgentDir(), "subagent-sessions"));
+	const resolved = path.resolve(path.join(root, sessionId));
+	const rel = path.relative(root, resolved);
+	if (path.isAbsolute(rel) || rel === ".." || rel.startsWith(".." + path.sep) || resolved === root) {
+		throw new Error(`Invalid sessionId: path traversal detected for "${sessionId}"`);
+	}
+	return resolved;
 }
 
 async function runSingleAgent(
@@ -469,9 +462,38 @@ async function runSingleAgent(
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
 	parentModel?: CurrentModel,
-	mainSessionDir?: string,
 ): Promise<SingleResult> {
-	const effectiveSessionId = sessionId ?? uuidv7();
+	let effectiveSessionId: string;
+	if (sessionId !== undefined) {
+		const trimmed = sessionId.trim();
+		const invalidSessionIdMessage =
+			trimmed === ""
+				? "Invalid sessionId: must not be empty"
+				: trimmed === "." || trimmed === ".."
+					? `Invalid sessionId: "${trimmed}" is not allowed`
+					: !/^[A-Za-z0-9_.-]+$/.test(trimmed)
+						? `Invalid sessionId: "${trimmed}" contains disallowed characters. Only letters, digits, underscore, dot, and hyphen are allowed.`
+						: null;
+		if (invalidSessionIdMessage) {
+			return {
+				agent: agentName,
+				agentSource: "unknown",
+				task,
+				exitCode: 1,
+				messages: [],
+				stderr: invalidSessionIdMessage,
+				errorMessage: invalidSessionIdMessage,
+				usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+				step,
+				phase: "idle",
+				lastPhaseChange: Date.now(),
+				sessionId: trimmed,
+			};
+		}
+		effectiveSessionId = trimmed;
+	} else {
+		effectiveSessionId = uuidv7();
+	}
 	const agent = agents.find((a) => a.name === agentName);
 
 	if (!agent) {
@@ -530,9 +552,9 @@ async function runSingleAgent(
 		}
 	}
 
-	// Isolate subagent sessions from the main agent's session directory.
-	const effectiveCwd = cwd ?? defaultCwd;
-	const subagentSessionDir = getSubagentSessionDir(effectiveCwd, mainSessionDir);
+	// Isolate subagent sessions under a dedicated root independent of cwd and
+	// the main agent's session directory.
+	const subagentSessionDir = getSubagentSessionDir(effectiveSessionId);
 	args.push("--session-dir", subagentSessionDir);
 
 	let tmpPromptDir: string | null = null;
@@ -908,7 +930,10 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 const SubagentParams = Type.Object({
 	agent: Type.Optional(Type.String({ description: "Name of the agent to invoke" })),
 	task: Type.Optional(Type.String({ description: "Task to delegate" })),
-	sessionId: Type.Optional(Type.String({ description: "Optional session ID to reuse; a new UUID v7 is generated if omitted" })),
+	sessionId: Type.Optional(Type.String({
+		pattern: "^[A-Za-z0-9_.-]+$",
+		description: "Optional session ID to reuse; a new UUID v7 is generated if omitted. Allowed characters: letters, digits, underscore, dot, and hyphen.",
+	})),
 	agentScope: Type.Optional(AgentScopeSchema),
 	confirmProjectAgents: Type.Optional(
 		Type.Boolean({ description: "Prompt before running project-local agents. Default: false.", default: false }),
@@ -1004,7 +1029,6 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 
-			const mainSessionDir = ctx.sessionManager?.getSessionDir();
 			const result = await runSingleAgent(
 				ctx.cwd,
 				agents,
@@ -1017,7 +1041,6 @@ export default function (pi: ExtensionAPI) {
 				onUpdate,
 				makeDetails,
 				ctx.model,
-				mainSessionDir,
 			);
 			const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
 			if (isError) {
