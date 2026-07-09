@@ -82,6 +82,17 @@ interface AgentDiscoveryResult {
 	projectAgentsDir: string | null;
 }
 
+function parseListField(value: unknown): string[] | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (Array.isArray(value)) {
+		return (value as unknown[]).map(s => String(s).trim()).filter(Boolean);
+	}
+	if (typeof value === "string") {
+		return value.split(",").map(s => s.trim()).filter(Boolean);
+	}
+	return undefined;
+}
+
 function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
 	const agents: AgentConfig[] = [];
 	if (!fs.existsSync(dir)) return agents;
@@ -101,28 +112,20 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 		} catch {
 			continue;
 		}
-		const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
+		const { frontmatter, body } = parseFrontmatter<Record<string, unknown>>(content);
 		if (!frontmatter.name || !frontmatter.description) continue;
-		const tools = frontmatter.tools
-			?.split(",")
-			.map((t: string) => t.trim())
-			.filter(Boolean);
+		const tools = parseListField(frontmatter.tools);
 		const hasSkills = "skills" in frontmatter;
-		const skills = hasSkills
-			? (frontmatter.skills
-				?.split(",")
-				.map((s: string) => s.trim())
-				.filter(Boolean) ?? [])
-			: undefined;
+		const skills = hasSkills ? parseListField(frontmatter.skills) ?? [] : undefined;
 		const canDelegate =
 			frontmatter.canDelegate !== undefined
 				? String(frontmatter.canDelegate).toLowerCase().trim() !== "false"
 				: true;
 		agents.push({
-			name: frontmatter.name,
-			description: frontmatter.description,
+			name: frontmatter.name as string,
+			description: frontmatter.description as string,
 			tools: tools && tools.length > 0 ? tools : undefined,
-			model: frontmatter.model,
+			model: frontmatter.model as string | undefined,
 			skills,
 			canDelegate,
 			systemPrompt: body,
