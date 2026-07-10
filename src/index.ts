@@ -931,8 +931,8 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 });
 
 const SubagentParams = Type.Object({
-	agent: Type.Optional(Type.String({ description: "Name of the agent to invoke" })),
-	task: Type.Optional(Type.String({ description: "Task to delegate" })),
+	agent: Type.String({ description: "Name of the agent to invoke" }),
+	task: Type.String({ description: "Task to delegate. Must be non-empty and include background, input, requirements, output format, and acceptance criteria." }),
 	sessionId: Type.Optional(Type.String({
 		pattern: "^[A-Za-z0-9_.-]+$",
 		description: "Optional session ID to reuse; a new UUID v7 is generated if omitted. Allowed characters: letters, digits, underscore, dot, and hyphen.",
@@ -989,6 +989,45 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
+			const agentName = params.agent;
+			const task = typeof params.task === "string" ? params.task.trim() : "";
+
+			if (!agentName) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: 'Missing required parameter: "agent". Please specify the name of the agent to invoke.',
+						},
+					],
+					details: {
+						mode: "single",
+						agentScope: (params.agentScope ?? "both") as AgentScope,
+						projectAgentsDir: null,
+						results: [],
+					} as SubagentDetails,
+					isError: true,
+				};
+			}
+
+			if (!task) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: 'Missing or empty required parameter: "task". The task must be non-empty and should include the five-section structure from master.md: 背景 (background), 输入 (input), 要求 (requirements), 输出格式 (output format), and 验收标准 (acceptance criteria).',
+						},
+					],
+					details: {
+						mode: "single",
+						agentScope: (params.agentScope ?? "both") as AgentScope,
+						projectAgentsDir: null,
+						results: [],
+					} as SubagentDetails,
+					isError: true,
+				};
+			}
+
 			const agentScope: AgentScope = params.agentScope ?? "both";
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
@@ -1000,20 +1039,6 @@ export default function (pi: ExtensionAPI) {
 				projectAgentsDir: discovery.projectAgentsDir,
 				results,
 			});
-
-			if (!params.agent || !params.task) {
-				const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
-				return {
-					content: [
-						{
-							type: "text",
-							text: `Invalid parameters. Provide agent and task.\nAvailable agents: ${available}`,
-						},
-					],
-					details: makeDetails([]),
-					isError: true,
-				};
-			}
 
 			if ((agentScope === "project" || agentScope === "both") && confirmProjectAgents && ctx.hasUI) {
 				const projectAgent = agents.find((a) => a.name === params.agent && a.source === "project");
@@ -1036,7 +1061,7 @@ export default function (pi: ExtensionAPI) {
 				ctx.cwd,
 				agents,
 				params.agent,
-				params.task,
+				task,
 				params.cwd,
 				undefined,
 				params.sessionId,

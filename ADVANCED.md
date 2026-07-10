@@ -45,6 +45,8 @@ canDelegate: false
 }
 ```
 
+> **注意**：`task` 字段必须非空，且建议按照 `master.md` 中的标准任务格式书写，包含：**背景、输入、要求、输出格式、验收标准**。空字符串或仅包含空白的 `task` 会被拒绝执行。
+
 ## sessionId 复用
 
 子 agent 完成后，返回结果末尾会附带 session ID：

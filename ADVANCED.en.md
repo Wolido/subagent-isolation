@@ -45,6 +45,8 @@ To make a manual call, use JSON like this:
 }
 ```
 
+> **Note**: The `task` field must be non-empty, and it is recommended to follow the standard task format in `master.md`: **background, input, requirements, output format, acceptance criteria**. A `task` that is empty or contains only whitespace will be rejected.
+
 ## Reusing a sessionId
 
 When the subagent finishes, its output ends with a session ID:
