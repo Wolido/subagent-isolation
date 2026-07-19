@@ -218,6 +218,43 @@ pi --tools read,grep,find,ls,subagent \
 
 ---
 
+## 为子 agent 指定模型
+
+不同子 agent 适合不同模型。如果你的主 agent 默认使用 Kimi K3（$3/$15 per M token），给 `coder`、`writer`、`reviewer` 全部用 Kimi K3 成本会很高。`coder` 需要强推理能力，适合 DeepSeek V4 Pro（$0.44/$0.87，性价比高）；`writer` 和 `reviewer` 任务较轻，用最便宜的 DeepSeek V4 Flash（$0.14/$0.28）就够了。把昂贵模型留给主 agent 做规划，能显著降低成本。
+
+### 配置文件
+
+通过 `subagent-isolation.json` 为每个子 agent 单独指定模型名称：
+
+- **用户级**：`~/.pi/agent/subagent-isolation.json`
+- **项目级**：`.pi/subagent-isolation.json`（从工作目录向上搜索）
+
+格式为 JSON key-value map，key 是 agent 名，value 是模型字符串：
+
+```json
+{
+  "coder": "deepseek/deepseek-v4-pro",
+  "writer": "deepseek/deepseek-v4-flash",
+  "reviewer": "deepseek/deepseek-v4-flash"
+}
+```
+
+这样配置后，主 agent 仍使用默认的 Kimi K3 做规划和决策，`coder` 使用 DeepSeek V4 Pro 处理代码修改，`writer` 和 `reviewer` 使用最便宜的 DeepSeek V4 Flash。整体成本大幅降低——大部分工作由低价模型完成，只有规划和复杂推理才用到高价模型。
+
+### 优先级规则
+
+模型选择的优先级（从高到低）：
+
+1. `subagent-isolation.json` 中的配置
+2. Agent frontmatter 中的 `model` 字段
+3. 继承父 agent 的模型
+
+### 合并规则
+
+项目级配置覆盖用户级同名 key。例如用户级为 `coder` 指定了 `deepseek/deepseek-v4-pro`，项目级为 `coder` 指定了 `kimi-coding/k3`，则项目中使用 Kimi K3。
+
+---
+
 ## 架构与工作流程
 
 1. 用户提出需求。

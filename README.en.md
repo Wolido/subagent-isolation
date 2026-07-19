@@ -216,6 +216,43 @@ If you only want them for the current project, place them in `.pi/agents/`; the 
 
 ---
 
+## Per-subagent model configuration
+
+Different subagents suit different models. If your main agent defaults to Kimi K3 ($3/$15 per M token), running `coder`, `writer`, and `reviewer` all on Kimi K3 gets expensive fast. `coder` needs strong reasoning — use DeepSeek V4 Pro ($0.44/$0.87, great value). `writer` and `reviewer` handle lighter tasks — DeepSeek V4 Flash ($0.14/$0.28) is the cheapest and works fine. Reserve the expensive model for the main agent's planning.
+
+### Configuration file
+
+Use `subagent-isolation.json` to assign a model per subagent:
+
+- **User-level**: `~/.pi/agent/subagent-isolation.json`
+- **Project-level**: `.pi/subagent-isolation.json` (searched upward from the working directory)
+
+The file is a JSON key-value map. Key = agent name, value = model string:
+
+```json
+{
+  "coder": "deepseek/deepseek-v4-pro",
+  "writer": "deepseek/deepseek-v4-flash",
+  "reviewer": "deepseek/deepseek-v4-flash"
+}
+```
+
+With this setup, the main agent still uses the default Kimi K3 for planning and decisions. `coder` uses DeepSeek V4 Pro for code changes. `writer` and `reviewer` use the cheapest DeepSeek V4 Flash. Overall cost drops significantly — most work runs on cheap models, and only planning and complex reasoning hit the expensive one.
+
+### Priority
+
+Model selection priority (highest to lowest):
+
+1. `subagent-isolation.json` configuration
+2. Agent frontmatter `model` field
+3. Inherit from the parent agent
+
+### Merge rules
+
+Project-level configuration overrides user-level keys of the same name. For example, if user-level sets `coder` to `deepseek/deepseek-v4-pro` and project-level sets `coder` to `kimi-coding/k3`, the project uses Kimi K3.
+
+---
+
 ## Architecture and workflow
 
 1. The user makes a request.

@@ -155,6 +155,46 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
 	}
 }
 
+/**
+ * Load a single model-overrides JSON file. Silently returns {} on any error
+ * (missing/unreadable file, invalid JSON, or non-object/non-string values).
+ */
+function loadModelOverridesFile(filePath: string): Record<string, string> {
+	try {
+		const content = fs.readFileSync(filePath, "utf-8");
+		const parsed: unknown = JSON.parse(content);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+		const overrides: Record<string, string> = {};
+		for (const [key, value] of Object.entries(parsed)) {
+			if (typeof value === "string" && value.trim()) overrides[key] = value;
+		}
+		return overrides;
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * Load model overrides from the user-level config
+ * (~/.pi/agent/subagent-isolation.json) merged with the nearest project-level
+ * config (.pi/subagent-isolation.json found by walking up from cwd).
+ * Project-level entries override user-level entries by key.
+ */
+function loadModelOverrides(cwd: string): Record<string, string> {
+	const userOverrides = loadModelOverridesFile(path.join(getAgentDir(), "subagent-isolation.json"));
+	let currentDir = cwd;
+	while (true) {
+		const candidate = path.join(currentDir, ".pi", "subagent-isolation.json");
+		if (fs.existsSync(candidate)) {
+			const projectOverrides = loadModelOverridesFile(candidate);
+			return { ...userOverrides, ...projectOverrides };
+		}
+		const parentDir = path.dirname(currentDir);
+		if (parentDir === currentDir) return userOverrides;
+		currentDir = parentDir;
+	}
+}
+
 function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryResult {
 	const userDir = path.join(getAgentDir(), "agents");
 	const projectAgentsDir = findNearestProjectAgentsDir(cwd);
@@ -465,6 +505,7 @@ async function runSingleAgent(
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
 	parentModel?: CurrentModel,
+	modelOverrides?: Record<string, string>,
 ): Promise<SingleResult> {
 	let effectiveSessionId: string;
 	if (sessionId !== undefined) {
@@ -516,8 +557,12 @@ async function runSingleAgent(
 		};
 	}
 
+	// Model priority: config file override > agent frontmatter model > inherited parent model
+	const overrideModel = modelOverrides?.[agent.name];
 	const args: string[] = ["--mode", "json", "-p", "--session-id", effectiveSessionId];
-	if (agent.model) {
+	if (overrideModel) {
+		args.push("--model", overrideModel);
+	} else if (agent.model) {
 		// Explicit agent-level model config takes priority
 		args.push("--model", agent.model);
 	} else if (parentModel) {
@@ -571,7 +616,7 @@ async function runSingleAgent(
 		messages: [],
 		stderr: skillWarnings.join(""),
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-		model: agent.model || (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined),
+		model: overrideModel || agent.model || (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined),
 		step,
 		phase: "idle",
 		lastPhaseChange: Date.now(),
@@ -1031,6 +1076,7 @@ export default function (pi: ExtensionAPI) {
 			const agentScope: AgentScope = params.agentScope ?? "both";
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
+			const modelOverrides = loadModelOverrides(ctx.cwd);
 			const confirmProjectAgents = params.confirmProjectAgents ?? false;
 
 			const makeDetails = (results: SingleResult[]): SubagentDetails => ({
@@ -1069,6 +1115,7 @@ export default function (pi: ExtensionAPI) {
 				onUpdate,
 				makeDetails,
 				ctx.model,
+				modelOverrides,
 			);
 			const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
 			if (isError) {
