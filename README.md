@@ -222,36 +222,61 @@ pi --tools read,grep,find,ls,subagent \
 
 不同子 agent 适合不同模型。如果你的主 agent 默认使用 Kimi K3（$3/$15 per M token），给 `coder`、`writer`、`reviewer` 全部用 Kimi K3 成本会很高。`coder` 需要强推理能力，适合 DeepSeek V4 Pro（$0.44/$0.87，性价比高）；`writer` 和 `reviewer` 任务较轻，用最便宜的 DeepSeek V4 Flash（$0.14/$0.28）就够了。把昂贵模型留给主 agent 做规划，能显著降低成本。
 
+除了模型，你还可以为子 agent 指定 **thinking level**（思考深度）。模型决定"谁来想"，thinking level 决定"想多深"——两者相互独立。`coder` 需要深入推理，适合 `high`；`reviewer` 只做简单检查，`off` 或 `low` 即可，能省推理时间。你也可以在便宜模型上提高 thinking level，以低成本获得不错的思考深度。
+
+> **注意**：如果子 agent 使用的模型不支持 reasoning（如部分轻量模型），Pi 会自动将 thinking level 钳制为 `off`，配置不生效。
+
 ### 配置文件
 
-通过 `subagent-isolation.json` 为每个子 agent 单独指定模型名称：
+通过 `subagent-isolation.json` 为每个子 agent 单独指定模型和 thinking level：
 
 - **用户级**：`~/.pi/agent/subagent-isolation.json`
 - **项目级**：`.pi/subagent-isolation.json`（从工作目录向上搜索）
 
-格式为 JSON key-value map，key 是 agent 名，value 是模型字符串：
+格式为 JSON key-value map，key 是 agent 名。value 支持两种写法：
+
+- **纯字符串**（旧格式，仍然有效）：直接写模型名称，不设置 thinking level。
+- **对象**：`{ "model": "模型名", "thinking": "思考等级" }`，可同时指定两者。
 
 ```json
 {
-  "coder": "deepseek/deepseek-v4-pro",
+  "coder": { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
   "writer": "deepseek/deepseek-v4-flash",
-  "reviewer": "deepseek/deepseek-v4-flash"
+  "reviewer": { "model": "deepseek/deepseek-v4-flash", "thinking": "off" }
 }
 ```
+
+`thinking` 可选值及含义：
+
+| 值 | 含义 |
+|---|---|
+| `off` | 无思考，直接回答（最快最省） |
+| `minimal` | 轻量思考 |
+| `low` | 浅层思考 |
+| `medium` | 平衡模式 |
+| `high` | 深度思考 |
+| `xhigh` | 更深层思考 |
+| `max` | 最大思考深度 |
+
+选择建议：复杂推理（写代码、架构设计）用 `high` 或以上；简单任务（格式检查、文案润色）用 `off` 或 `low`；不确定时用 `medium`。
 
 这样配置后，主 agent 仍使用默认的 Kimi K3 做规划和决策，`coder` 使用 DeepSeek V4 Pro 处理代码修改，`writer` 和 `reviewer` 使用最便宜的 DeepSeek V4 Flash。整体成本大幅降低——大部分工作由低价模型完成，只有规划和复杂推理才用到高价模型。
 
 ### 优先级规则
 
-模型选择的优先级（从高到低）：
+model 和 thinking 的优先级相同（从高到低）：
 
 1. `subagent-isolation.json` 中的配置
-2. Agent frontmatter 中的 `model` 字段
-3. 继承父 agent 的模型
+2. Agent frontmatter 中的 `model` / `thinking` 字段
+3. 继承父 agent 的配置
+
+两个维度独立生效。比如只在 frontmatter 中指定 `model`，在配置文件中单独覆盖 `thinking`——各自走完整的优先级链。
 
 ### 合并规则
 
-项目级配置覆盖用户级同名 key。例如用户级为 `coder` 指定了 `deepseek/deepseek-v4-pro`，项目级为 `coder` 指定了 `kimi-coding/k3`，则项目中使用 Kimi K3。
+项目级配置覆盖用户级同名 key。例如用户级为 `coder` 指定 `deepseek/deepseek-v4-pro`，项目级为 `coder` 指定 `kimi-coding/k3`，则项目中使用 Kimi K3。
+
+> **注意**：纯字符串旧格式仍然有效，无需修改现有配置。不指定 `thinking` 时，子 agent 按优先级规则继承 thinking level。
 
 ---
 

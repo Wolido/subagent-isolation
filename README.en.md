@@ -220,36 +220,61 @@ If you only want them for the current project, place them in `.pi/agents/`; the 
 
 Different subagents suit different models. If your main agent defaults to Kimi K3 ($3/$15 per M token), running `coder`, `writer`, and `reviewer` all on Kimi K3 gets expensive fast. `coder` needs strong reasoning — use DeepSeek V4 Pro ($0.44/$0.87, great value). `writer` and `reviewer` handle lighter tasks — DeepSeek V4 Flash ($0.14/$0.28) is the cheapest and works fine. Reserve the expensive model for the main agent's planning.
 
+Beyond model choice, you can also set a **thinking level** (reasoning depth) per subagent. The model determines *who* thinks; the thinking level determines *how deeply* — they're independent. `coder` benefits from deep reasoning (`high`); `reviewer` only needs quick checks, so `off` or `low` saves time. You can also pair a cheap model with a higher thinking level to get decent reasoning at low cost.
+
+> **Note**: if the subagent's model doesn't support reasoning (e.g. some lightweight models), Pi automatically clamps the thinking level to `off` — the setting has no effect.
+
 ### Configuration file
 
-Use `subagent-isolation.json` to assign a model per subagent:
+Use `subagent-isolation.json` to assign a model and thinking level per subagent:
 
 - **User-level**: `~/.pi/agent/subagent-isolation.json`
 - **Project-level**: `.pi/subagent-isolation.json` (searched upward from the working directory)
 
-The file is a JSON key-value map. Key = agent name, value = model string:
+The file is a JSON key-value map. Key = agent name. The value supports two formats:
+
+- **Plain string** (legacy format, still supported): just the model name, no thinking level.
+- **Object**: `{ "model": "model-name", "thinking": "thinking-level" }` to specify both.
 
 ```json
 {
-  "coder": "deepseek/deepseek-v4-pro",
+  "coder": { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
   "writer": "deepseek/deepseek-v4-flash",
-  "reviewer": "deepseek/deepseek-v4-flash"
+  "reviewer": { "model": "deepseek/deepseek-v4-flash", "thinking": "off" }
 }
 ```
 
-With this setup, the main agent still uses the default Kimi K3 for planning and decisions. `coder` uses DeepSeek V4 Pro for code changes. `writer` and `reviewer` use the cheapest DeepSeek V4 Flash. Overall cost drops significantly — most work runs on cheap models, and only planning and complex reasoning hit the expensive one.
+Allowed `thinking` values and what they mean:
+
+| Value | Meaning |
+|---|---|
+| `off` | No reasoning, respond directly (fastest, cheapest) |
+| `minimal` | Light reasoning |
+| `low` | Shallow reasoning |
+| `medium` | Balanced |
+| `high` | Deep reasoning |
+| `xhigh` | Deeper reasoning |
+| `max` | Maximum reasoning depth |
+
+Guidance: complex reasoning (coding, architecture design) → `high` or above; simple tasks (format checks, copy editing) → `off` or `low`; when unsure, start with `medium`.
+
+With this setup, the main agent still uses the default Kimi K3 for planning and decisions. `coder` uses DeepSeek V4 Pro for code changes. `writer` and `reviewer` use the cheapest DeepSeek V4 Flash. Overall cost drops significantly — most work runs on cheap models; only planning and complex reasoning hit the expensive one.
 
 ### Priority
 
-Model selection priority (highest to lowest):
+Both `model` and `thinking` follow the same priority chain (highest to lowest):
 
 1. `subagent-isolation.json` configuration
-2. Agent frontmatter `model` field
+2. Agent frontmatter `model` / `thinking` field
 3. Inherit from the parent agent
+
+The two dimensions are independent. For example, you can set `model` in frontmatter and override only `thinking` in the config file — each follows its own priority chain.
 
 ### Merge rules
 
 Project-level configuration overrides user-level keys of the same name. For example, if user-level sets `coder` to `deepseek/deepseek-v4-pro` and project-level sets `coder` to `kimi-coding/k3`, the project uses Kimi K3.
+
+> **Note**: the plain-string legacy format is still fully supported — no changes needed to existing configs. When `thinking` is not specified, the subagent inherits it according to the priority rules above.
 
 ---
 

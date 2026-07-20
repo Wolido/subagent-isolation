@@ -39,7 +39,8 @@
     "provenance": false
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "*",
@@ -55,7 +56,8 @@
     "@earendil-works/pi-tui": "*",
     "@types/node": "^20.0.0",
     "typebox": "*",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20.0.0"

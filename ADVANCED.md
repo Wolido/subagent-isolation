@@ -31,6 +31,7 @@ canDelegate: false
 | `description` | `string` | **必填。** 在 agent 列表和错误信息中显示的简短描述。 |
 | `tools` | `string[]`（逗号分隔） | 可选的子 agent 工具白名单。 |
 | `model` | `string` | 可选的模型覆盖，例如 `claude-3-7-sonnet`。 |
+| `thinking` | `string` | 可选，思考等级。值为 `off \| minimal \| low \| medium \| high \| xhigh \| max`。 |
 | `skills` | `string[]`（逗号分隔） | 可选的 skill 路径列表。若存在，则禁用全局 skills，仅加载列出的 skill。路径可绝对或相对于工作目录。 |
 | `canDelegate` | `boolean` | 默认为 `true`。设为 `false` 可阻止该 agent 继续创建 subagent。 |
 

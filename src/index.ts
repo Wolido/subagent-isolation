@@ -70,6 +70,7 @@ interface AgentConfig {
 	description: string;
 	tools?: string[];
 	model?: string;
+	thinking?: string;
 	skills?: string[];
 	canDelegate?: boolean;
 	systemPrompt: string;
@@ -121,11 +122,17 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 			frontmatter.canDelegate !== undefined
 				? String(frontmatter.canDelegate).toLowerCase().trim() !== "false"
 				: true;
+		const rawThinking = frontmatter.thinking;
+		const thinking =
+			typeof rawThinking === "string" && isThinkingLevel(rawThinking)
+				? rawThinking
+				: undefined;
 		agents.push({
 			name: frontmatter.name as string,
 			description: frontmatter.description as string,
 			tools: tools && tools.length > 0 ? tools : undefined,
 			model: frontmatter.model as string | undefined,
+			thinking,
 			skills,
 			canDelegate,
 			systemPrompt: body,
@@ -155,21 +162,64 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
 	}
 }
 
+// ===== Thinking level / model override config =====
+
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+/** Check whether a value is a valid thinking level (case-sensitive). */
+export function isThinkingLevel(value: string): boolean {
+	return typeof value === "string" && THINKING_LEVELS.has(value);
+}
+
+export interface ModelOverride {
+	model?: string;
+	thinking?: string;
+}
+
 /**
- * Load a single model-overrides JSON file. Silently returns {} on any error
- * (missing/unreadable file, invalid JSON, or non-object/non-string values).
+ * Normalize a raw override value from the config file.
+ * - Non-empty string -> { model: value } (legacy format)
+ * - Object -> keep only valid `model` (non-empty string) and `thinking`
+ *   (valid thinking level) fields
+ * - Anything else -> undefined
  */
-function loadModelOverridesFile(filePath: string): Record<string, string> {
+export function normalizeOverride(value: unknown): ModelOverride | undefined {
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		return trimmed ? { model: trimmed } : undefined;
+	}
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+	const record = value as Record<string, unknown>;
+	const result: ModelOverride = {};
+	if (typeof record.model === "string") {
+		const modelTrimmed = record.model.trim();
+		if (modelTrimmed) result.model = modelTrimmed;
+	}
+	if (typeof record.thinking === "string" && isThinkingLevel(record.thinking)) result.thinking = record.thinking;
+	return result.model !== undefined || result.thinking !== undefined ? result : undefined;
+}
+
+/**
+ * Load a single model-overrides JSON file. Returns {} on any error
+ * (missing/unreadable file, invalid JSON, or invalid values), logging a
+ * warning to help troubleshoot configuration problems.
+ */
+export function loadModelOverridesFile(filePath: string): Record<string, ModelOverride> {
 	try {
 		const content = fs.readFileSync(filePath, "utf-8");
 		const parsed: unknown = JSON.parse(content);
-		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-		const overrides: Record<string, string> = {};
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+			console.warn(`[subagent-isolation] ${filePath}: expected a JSON object, ignoring.`);
+			return {};
+		}
+		const overrides: Record<string, ModelOverride> = {};
 		for (const [key, value] of Object.entries(parsed)) {
-			if (typeof value === "string" && value.trim()) overrides[key] = value;
+			const normalized = normalizeOverride(value);
+			if (normalized) overrides[key] = normalized;
 		}
 		return overrides;
-	} catch {
+	} catch (err) {
+		console.warn(`[subagent-isolation] failed to load ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
 		return {};
 	}
 }
@@ -180,7 +230,7 @@ function loadModelOverridesFile(filePath: string): Record<string, string> {
  * config (.pi/subagent-isolation.json found by walking up from cwd).
  * Project-level entries override user-level entries by key.
  */
-function loadModelOverrides(cwd: string): Record<string, string> {
+export function loadModelOverrides(cwd: string): Record<string, ModelOverride> {
 	const userOverrides = loadModelOverridesFile(path.join(getAgentDir(), "subagent-isolation.json"));
 	let currentDir = cwd;
 	while (true) {
@@ -505,7 +555,7 @@ async function runSingleAgent(
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
 	parentModel?: CurrentModel,
-	modelOverrides?: Record<string, string>,
+	modelOverrides?: Record<string, ModelOverride>,
 ): Promise<SingleResult> {
 	let effectiveSessionId: string;
 	if (sessionId !== undefined) {
@@ -558,17 +608,14 @@ async function runSingleAgent(
 	}
 
 	// Model priority: config file override > agent frontmatter model > inherited parent model
-	const overrideModel = modelOverrides?.[agent.name];
+	const override = modelOverrides?.[agent.name];
+	const effectiveModel =
+		override?.model || agent.model || (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined);
+	// Thinking priority: config file override > agent frontmatter thinking
+	const effectiveThinking = override?.thinking || agent.thinking;
 	const args: string[] = ["--mode", "json", "-p", "--session-id", effectiveSessionId];
-	if (overrideModel) {
-		args.push("--model", overrideModel);
-	} else if (agent.model) {
-		// Explicit agent-level model config takes priority
-		args.push("--model", agent.model);
-	} else if (parentModel) {
-		// Inherit the main agent's current model
-		args.push("--model", `${parentModel.provider}/${parentModel.id}`);
-	}
+	if (effectiveModel) args.push("--model", effectiveModel);
+	if (effectiveThinking) args.push("--thinking", effectiveThinking);
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
 	// MODIFIED: inject per-agent skill isolation
@@ -616,7 +663,7 @@ async function runSingleAgent(
 		messages: [],
 		stderr: skillWarnings.join(""),
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-		model: overrideModel || agent.model || (parentModel ? `${parentModel.provider}/${parentModel.id}` : undefined),
+		model: effectiveModel,
 		step,
 		phase: "idle",
 		lastPhaseChange: Date.now(),

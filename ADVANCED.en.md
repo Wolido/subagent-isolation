@@ -31,6 +31,7 @@ You are a senior TypeScript engineer. Prefer async/await and avoid callbacks.
 | `description` | `string` | **Required.** Short summary shown in discovery / error messages. |
 | `tools` | `string[]` (comma-separated) | Optional tool whitelist for the subagent. |
 | `model` | `string` | Optional model override, e.g. `claude-3-7-sonnet`. |
+| `thinking` | `string` | Optional thinking level. One of `off \| minimal \| low \| medium \| high \| xhigh \| max`. |
 | `skills` | `string[]` (comma-separated) | Optional skill path list. If present, global skills are disabled and only these are loaded. Paths can be absolute or relative to the working directory. |
 | `canDelegate` | `boolean` | Defaults to `true`. Set to `false` to prevent this agent from spawning further subagents. |
 
