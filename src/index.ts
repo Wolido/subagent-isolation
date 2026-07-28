@@ -25,8 +25,9 @@ import {
 	withFileMutationQueue,
 	getAgentDir,
 	parseFrontmatter,
+	type Theme,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { type Component, Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 // ===== UUID v7 helper =====
@@ -322,7 +323,8 @@ function formatToolCall(
 
 	switch (toolName) {
 		case "bash": {
-			const command = (args.command as string) || "...";
+			// Flatten newlines so the preview stays on a single rendered line.
+			const command = ((args.command as string) || "...").replace(/\n/g, "↵");
 			const preview = command.length > 60 ? `${command.slice(0, 60)}...` : command;
 			return themeFg("muted", "$ ") + themeFg("toolOutput", preview);
 		}
@@ -527,6 +529,49 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
+/** Truncate to at most `max` Unicode code points (safe for emoji/CJK), appending "..." if truncated. */
+function truncateCodePoints(str: string, max: number): string {
+	const chars = Array.from(str);
+	return chars.length > max ? `${chars.slice(0, max).join("")}...` : str;
+}
+
+/**
+ * Render the partial/streaming state as a compact fixed-height block (exactly
+ * 5 lines) to avoid height jumps (and the resulting flicker) while the
+ * subagent runs, while still showing live phase/tool/output info.
+ */
+function renderPartialBlock(r: SingleResult, theme: Theme, lastComponent: Component | undefined): Component {
+	const lines: string[] = [];
+	lines.push(
+		theme.fg("warning", "⏳ ") +
+		theme.fg("toolTitle", theme.bold(r.agent)) +
+		" " +
+		theme.fg("warning", formatPhase(r.phase)),
+	);
+
+	// Detail area: recent tool calls, then the latest output snippet.
+	const detailLines: string[] = [];
+	const toolCalls = getDisplayItems(r.messages).filter(
+		(item): item is Extract<DisplayItem, { type: "toolCall" }> => item.type === "toolCall",
+	);
+	for (const item of toolCalls.slice(-3)) {
+		detailLines.push(theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme)));
+	}
+	const outputSource = (r.thinkingBuffer && r.thinkingBuffer.trim()) || getFinalOutput(r.messages).trim();
+	if (outputSource) {
+		const lastLine = outputSource.split("\n").filter((l) => l.trim()).pop() ?? "";
+		if (lastLine) detailLines.push(theme.fg("dim", truncateCodePoints(lastLine, 100)));
+	}
+	if (detailLines.length === 0) detailLines.push(theme.fg("dim", "(initializing...)"));
+
+	// Fixed height: keep the 4 most recent detail lines, pad to 5 total.
+	lines.push(...detailLines.slice(-4));
+	while (lines.length < 5) lines.push("");
+	const component = lastComponent instanceof Text ? lastComponent : new Text("", 0, 0);
+	component.setText(lines.join("\n"));
+	return component;
+}
+
 /**
  * Build the isolated session directory for a subagent.
  * All subagent sessions live under a dedicated root, independent of the main
@@ -689,6 +734,10 @@ async function runSingleAgent(
 		}, 100);
 	};
 
+	// Notify immediately only on the first idle -> busy transition so the user
+	// sees the subagent start; all later intermediate events are throttled.
+	let hasNotifiedStart = false;
+
 	try {
 		if (agent.systemPrompt.trim()) {
 			const tmp = await writePromptToTempFile(agent.name, agent.systemPrompt);
@@ -790,11 +839,17 @@ async function runSingleAgent(
 				}
 
 				if (event.type === "turn_start") {
+					const wasIdle = currentResult.phase === "idle";
 					currentResult.phase = "thinking";
 					currentResult.lastPhaseChange = Date.now();
 					currentResult.thinkingBuffer = "";
 					resetActivityTimer();
-					emitUpdate();
+					if (wasIdle && !hasNotifiedStart) {
+						hasNotifiedStart = true;
+						emitUpdate();
+					} else {
+						throttledEmitUpdate();
+					}
 				}
 
 				// message_start: assistant message begins; typically no text yet, so just update phase
@@ -802,7 +857,7 @@ async function runSingleAgent(
 					currentResult.phase = "thinking";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					emitUpdate();
+					throttledEmitUpdate();
 				}
 
 				if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
@@ -825,7 +880,7 @@ async function runSingleAgent(
 					currentResult.phase = `tooling:${event.toolName}`;
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					emitUpdate();
+					throttledEmitUpdate();
 				}
 
 				if (event.type === "tool_execution_update") {
@@ -841,14 +896,14 @@ async function runSingleAgent(
 					currentResult.phase = "waiting";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					emitUpdate();
+					throttledEmitUpdate();
 				}
 
 				if (event.type === "turn_end") {
 					currentResult.phase = "idle";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					emitUpdate();
+					throttledEmitUpdate();
 				}
 
 				if (event.type === "message_end" && event.message) {
@@ -1183,7 +1238,7 @@ export default function (pi: ExtensionAPI) {
 			};
 		},
 
-		renderCall(args, theme, _context) {
+		renderCall(args, theme, context) {
 			const scope: AgentScope = args.agentScope ?? "both";
 			const agentName = args.agent || "...";
 			const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
@@ -1192,13 +1247,19 @@ export default function (pi: ExtensionAPI) {
 				theme.fg("accent", agentName) +
 				theme.fg("muted", ` [${scope}]`);
 			text += `\n  ${theme.fg("dim", preview)}`;
-			return new Text(text, 0, 0);
+			const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
+			component.setText(text);
+			return component;
 		},
 
-		renderResult(result, { expanded }, theme, _context) {
+		renderResult(result, { expanded, isPartial }, theme, context) {
 			const details = result.details as SubagentDetails | undefined;
 			if (!details || details.results.length === 0) {
 				return new Text(result.content[0]?.type === "text" ? result.content[0].text : "(no output)", 0, 0);
+			}
+
+			if (isPartial) {
+				return renderPartialBlock(details.results[0], theme, context.lastComponent);
 			}
 
 			const mdTheme = getMarkdownTheme();
@@ -1286,7 +1347,9 @@ export default function (pi: ExtensionAPI) {
 				}
 				const usageStr = formatUsageStats(r.usage, r.model);
 				if (usageStr) text += `\n${theme.fg("dim", usageStr)}`;
-				return new Text(text, 0, 0);
+				const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
+				component.setText(text);
+				return component;
 			}
 
 			return new Text(theme.fg("muted", "(no subagent result)"), 0, 0);
