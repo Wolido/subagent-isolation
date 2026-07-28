@@ -16,18 +16,17 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
 	type ExtensionAPI,
+	type ExtensionContext,
 	getMarkdownTheme,
 	withFileMutationQueue,
 	getAgentDir,
 	parseFrontmatter,
-	type Theme,
 } from "@earendil-works/pi-coding-agent";
-import { type Component, Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 // ===== UUID v7 helper =====
@@ -527,49 +526,146 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 	return { command: "pi", args };
 }
 
-type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
+// ===== Subagent progress widget =====
+
+interface SubagentProgressUpdate {
+	phase?: SingleResult["phase"];
+	currentTool?: string;
+	recentTools?: string[];
+}
+
+type SubagentProgressCallback = (update: SubagentProgressUpdate) => void;
+
+interface AgentProgress {
+	name: string;
+	phase: SingleResult["phase"];
+	currentTool?: string;
+	recentTools: string[];
+	startedAt: number;
+}
+
+const PROGRESS_WIDGET_KEY = "subagent-isolation-progress";
+const MAX_WIDGET_LINES = 20;
+const MAX_RECENT_TOOLS = 3;
+
+/** Plain-text one-line summary of a tool call for the progress widget (no theme colors). */
+function summarizeToolCall(toolName: string, args: Record<string, any>): string {
+	const raw = ((args.file_path || args.path || args.command || args.pattern || "") as string).replace(/\n/g, "↵");
+	const home = os.homedir();
+	const shortened = raw.startsWith(home) ? `~${raw.slice(home.length)}` : raw;
+	return truncateCodePoints(shortened ? `${toolName} ${shortened}` : toolName, 60);
+}
+
+function getRecentToolSummaries(messages: Message[]): string[] {
+	return getDisplayItems(messages)
+		.filter((item): item is Extract<DisplayItem, { type: "toolCall" }> => item.type === "toolCall")
+		.slice(-MAX_RECENT_TOOLS)
+		.map((item) => summarizeToolCall(item.name, item.args));
+}
+
+export function formatElapsed(startedAt: number): string {
+	const totalSec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+	const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+	const ss = String(totalSec % 60).padStart(2, "0");
+	return `${mm}:${ss}`;
+}
+
+/**
+ * Tracks progress of all running subagents and renders it as a widget above
+ * the editor. A single 1Hz interval drives widget refreshes; update() only
+ * mutates in-memory state and never triggers a render.
+ */
+export class SubagentProgressManager {
+	private agents = new Map<string, AgentProgress>();
+	private timer: ReturnType<typeof setInterval> | null = null;
+	private ctx: ExtensionContext | null = null;
+	private widgetSet = false;
+
+	register(ctx: ExtensionContext, sessionId: string, name: string): void {
+		this.ctx = ctx;
+		this.agents.set(sessionId, {
+			name,
+			phase: "idle",
+			recentTools: [],
+			startedAt: Date.now(),
+		});
+		this.ensureTimer();
+		this.refresh();
+	}
+
+	update(sessionId: string, update: SubagentProgressUpdate): void {
+		const agent = this.agents.get(sessionId);
+		if (!agent) return;
+		if (update.phase !== undefined) agent.phase = update.phase;
+		if (update.currentTool !== undefined) agent.currentTool = update.currentTool;
+		if (update.recentTools !== undefined) agent.recentTools = update.recentTools;
+	}
+
+	unregister(sessionId: string): void {
+		if (!this.agents.has(sessionId)) return;
+		this.agents.delete(sessionId);
+		if (this.agents.size === 0) {
+			this.stopTimer();
+			if (this.widgetSet && this.ctx?.hasUI) this.ctx.ui.setWidget(PROGRESS_WIDGET_KEY, undefined);
+			this.widgetSet = false;
+			this.ctx = null;
+		} else {
+			this.refresh();
+		}
+	}
+
+	refresh(): void {
+		if (!this.ctx?.hasUI) return;
+		const sorted = [...this.agents.values()].sort((a, b) => a.startedAt - b.startedAt);
+		if (sorted.length === 0) return;
+		// Over the line budget, truncate the earliest-started agents first.
+		const maxLines = Math.max(1, Math.min(process.stdout.rows || MAX_WIDGET_LINES, MAX_WIDGET_LINES));
+		const lines = sorted.slice(-maxLines).map((a) => {
+			const nameCol = truncateCodePoints(a.name, 10).padEnd(10);
+			const phaseCol = formatPhase(a.phase).padEnd(28);
+			const toolHint = a.recentTools.length > 0 ? `  → ${a.recentTools[a.recentTools.length - 1]}` : "";
+			return `${nameCol} ${phaseCol} ${formatElapsed(a.startedAt)}${toolHint}`;
+		});
+		this.ctx.ui.setWidget(PROGRESS_WIDGET_KEY, lines);
+		this.widgetSet = true;
+	}
+
+	private ensureTimer(): void {
+		if (this.timer) return;
+		this.timer = setInterval(() => this.refresh(), 1000);
+		this.timer.unref?.();
+	}
+
+	private stopTimer(): void {
+		if (this.timer) {
+			clearInterval(this.timer);
+			this.timer = null;
+		}
+	}
+}
+
+const progressManager = new SubagentProgressManager();
+
+/** Minimal result used for the one-shot "Running..." placeholder rendered while the subagent runs. */
+function createPlaceholderResult(agent: string, task: string, sessionId: string): SingleResult {
+	return {
+		agent,
+		agentSource: "unknown",
+		task,
+		exitCode: 0,
+		messages: [],
+		stderr: "",
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+		phase: "thinking",
+		lastPhaseChange: Date.now(),
+		sessionId,
+	};
+}
 
 /** Truncate to at most `max` Unicode code points (safe for emoji/CJK), appending "..." if truncated. */
 function truncateCodePoints(str: string, max: number): string {
 	const chars = Array.from(str);
 	return chars.length > max ? `${chars.slice(0, max).join("")}...` : str;
-}
-
-/**
- * Render the partial/streaming state as a compact fixed-height block (exactly
- * 5 lines) to avoid height jumps (and the resulting flicker) while the
- * subagent runs, while still showing live phase/tool/output info.
- */
-function renderPartialBlock(r: SingleResult, theme: Theme, lastComponent: Component | undefined): Component {
-	const lines: string[] = [];
-	lines.push(
-		theme.fg("warning", "⏳ ") +
-		theme.fg("toolTitle", theme.bold(r.agent)) +
-		" " +
-		theme.fg("warning", formatPhase(r.phase)),
-	);
-
-	// Detail area: recent tool calls, then the latest output snippet.
-	const detailLines: string[] = [];
-	const toolCalls = getDisplayItems(r.messages).filter(
-		(item): item is Extract<DisplayItem, { type: "toolCall" }> => item.type === "toolCall",
-	);
-	for (const item of toolCalls.slice(-3)) {
-		detailLines.push(theme.fg("muted", "→ ") + formatToolCall(item.name, item.args, theme.fg.bind(theme)));
-	}
-	const outputSource = (r.thinkingBuffer && r.thinkingBuffer.trim()) || getFinalOutput(r.messages).trim();
-	if (outputSource) {
-		const lastLine = outputSource.split("\n").filter((l) => l.trim()).pop() ?? "";
-		if (lastLine) detailLines.push(theme.fg("dim", truncateCodePoints(lastLine, 100)));
-	}
-	if (detailLines.length === 0) detailLines.push(theme.fg("dim", "(initializing...)"));
-
-	// Fixed height: keep the 4 most recent detail lines, pad to 5 total.
-	lines.push(...detailLines.slice(-4));
-	while (lines.length < 5) lines.push("");
-	const component = lastComponent instanceof Text ? lastComponent : new Text("", 0, 0);
-	component.setText(lines.join("\n"));
-	return component;
 }
 
 /**
@@ -597,8 +693,7 @@ async function runSingleAgent(
 	step: number | undefined,
 	sessionId: string | undefined,
 	signal: AbortSignal | undefined,
-	onUpdate: OnUpdateCallback | undefined,
-	makeDetails: (results: SingleResult[]) => SubagentDetails,
+	progressCallback: SubagentProgressCallback | undefined,
 	parentModel?: CurrentModel,
 	modelOverrides?: Record<string, ModelOverride>,
 ): Promise<SingleResult> {
@@ -715,22 +810,24 @@ async function runSingleAgent(
 		sessionId: effectiveSessionId,
 	};
 
-	const emitUpdate = () => {
+	const emitProgress = () => {
 		if (emitTimer) { clearTimeout(emitTimer); emitTimer = null; }
-		if (onUpdate) {
-			onUpdate({
-				content: [{ type: "text", text: getFinalOutput(currentResult.messages) || formatPhase(currentResult.phase) }],
-				details: makeDetails([currentResult]),
+		if (progressCallback) {
+			const phase = currentResult.phase;
+			progressCallback({
+				phase,
+				currentTool: phase.startsWith("tooling:") ? phase.slice(8) : undefined,
+				recentTools: getRecentToolSummaries(currentResult.messages),
 			});
 		}
 	};
 
 	let emitTimer: ReturnType<typeof setTimeout> | null = null;
-	const throttledEmitUpdate = () => {
+	const throttledEmitProgress = () => {
 		if (emitTimer) return;
 		emitTimer = setTimeout(() => {
 			emitTimer = null;
-			emitUpdate();
+			emitProgress();
 		}, 100);
 	};
 
@@ -846,9 +943,9 @@ async function runSingleAgent(
 					resetActivityTimer();
 					if (wasIdle && !hasNotifiedStart) {
 						hasNotifiedStart = true;
-						emitUpdate();
+						emitProgress();
 					} else {
-						throttledEmitUpdate();
+						throttledEmitProgress();
 					}
 				}
 
@@ -857,7 +954,7 @@ async function runSingleAgent(
 					currentResult.phase = "thinking";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					throttledEmitUpdate();
+					throttledEmitProgress();
 				}
 
 				if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
@@ -873,20 +970,20 @@ async function runSingleAgent(
 					currentResult.phase = "thinking";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					throttledEmitUpdate();
+					throttledEmitProgress();
 				}
 
 				if (event.type === "tool_execution_start") {
 					currentResult.phase = `tooling:${event.toolName}`;
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					throttledEmitUpdate();
+					throttledEmitProgress();
 				}
 
 				if (event.type === "tool_execution_update") {
 					currentResult.phase = `tooling:${event.toolName}`;
 					resetActivityTimer();
-					throttledEmitUpdate();
+					throttledEmitProgress();
 				}
 
 				if (event.type === "tool_execution_end") {
@@ -896,14 +993,14 @@ async function runSingleAgent(
 					currentResult.phase = "waiting";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					throttledEmitUpdate();
+					throttledEmitProgress();
 				}
 
 				if (event.type === "turn_end") {
 					currentResult.phase = "idle";
 					currentResult.lastPhaseChange = Date.now();
 					resetActivityTimer();
-					throttledEmitUpdate();
+					throttledEmitProgress();
 				}
 
 				if (event.type === "message_end" && event.message) {
@@ -931,12 +1028,12 @@ async function runSingleAgent(
 							} catch {
 								/* ignore ESRCH */
 							}
-							emitUpdate();
+							emitProgress();
 							finalize(1);
 							return;
 						}
 					}
-					emitUpdate();
+					emitProgress();
 				}
 			};
 			const processLine = (line: string) => {
@@ -1205,37 +1302,51 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 
-			const result = await runSingleAgent(
-				ctx.cwd,
-				agents,
-				params.agent,
-				task,
-				params.cwd,
-				undefined,
-				params.sessionId,
-				signal,
-				onUpdate,
-				makeDetails,
-				ctx.model,
-				modelOverrides,
-			);
-			const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
-			if (isError) {
-				const diagnostics = formatSubagentDiagnostics(result) + `\n\n[subagent session: ${result.sessionId}]`;
+			// The tool area is only rendered once at the start (placeholder) and
+			// once at the end (full result). Live progress goes through the
+			// progress manager's widget, not the TUI render pipeline.
+			const effectiveSessionId = params.sessionId ?? uuidv7();
+			progressManager.register(ctx, effectiveSessionId, params.agent);
+			try {
+				if (onUpdate) {
+					onUpdate({
+						content: [{ type: "text", text: "Running..." }],
+						details: makeDetails([createPlaceholderResult(params.agent, task, effectiveSessionId)]),
+					});
+				}
+				const result = await runSingleAgent(
+					ctx.cwd,
+					agents,
+					params.agent,
+					task,
+					params.cwd,
+					undefined,
+					effectiveSessionId,
+					signal,
+					(update) => progressManager.update(effectiveSessionId, update),
+					ctx.model,
+					modelOverrides,
+				);
+				const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+				if (isError) {
+					const diagnostics = formatSubagentDiagnostics(result) + `\n\n[subagent session: ${result.sessionId}]`;
+					return {
+						content: [{ type: "text", text: diagnostics }],
+						details: makeDetails([result]),
+						isError: true,
+					};
+				}
+				const rawOutput = getFinalOutput(result.messages);
+				const outputText = rawOutput
+					? `${rawOutput}\n\n[subagent session: ${result.sessionId}]`
+					: `[subagent session: ${result.sessionId}]`;
 				return {
-					content: [{ type: "text", text: diagnostics }],
+					content: [{ type: "text", text: outputText }],
 					details: makeDetails([result]),
-					isError: true,
 				};
+			} finally {
+				progressManager.unregister(effectiveSessionId);
 			}
-			const rawOutput = getFinalOutput(result.messages);
-			const outputText = rawOutput
-				? `${rawOutput}\n\n[subagent session: ${result.sessionId}]`
-				: `[subagent session: ${result.sessionId}]`;
-			return {
-				content: [{ type: "text", text: outputText }],
-				details: makeDetails([result]),
-			};
 		},
 
 		renderCall(args, theme, context) {
@@ -1259,7 +1370,17 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			if (isPartial) {
-				return renderPartialBlock(details.results[0], theme, context.lastComponent);
+				// Live progress lives in the widget above the editor; the tool area
+				// only shows a static placeholder while the subagent runs.
+				const r = details.results[0];
+				const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
+				component.setText(
+					theme.fg("warning", "⏳ ") +
+						theme.fg("toolTitle", theme.bold(r.agent)) +
+						theme.fg("warning", " Running... ") +
+						theme.fg("dim", formatPhase(r.phase)),
+				);
+				return component;
 			}
 
 			const mdTheme = getMarkdownTheme();
