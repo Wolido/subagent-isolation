@@ -219,7 +219,9 @@ export function loadModelOverridesFile(filePath: string): Record<string, ModelOv
 		}
 		return overrides;
 	} catch (err) {
-		console.warn(`[subagent-isolation] failed to load ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+		if (!(err instanceof Error && "code" in err && err.code === "ENOENT")) {
+			console.warn(`[subagent-isolation] failed to load ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+		}
 		return {};
 	}
 }
