@@ -1350,14 +1350,10 @@ export default function (pi: ExtensionAPI) {
 		},
 
 		renderCall(args, theme, context) {
-			const scope: AgentScope = args.agentScope ?? "both";
 			const agentName = args.agent || "...";
-			const preview = args.task ? (args.task.length > 60 ? `${args.task.slice(0, 60)}...` : args.task) : "...";
-			let text =
+			const text =
 				theme.fg("toolTitle", theme.bold("subagent ")) +
-				theme.fg("accent", agentName) +
-				theme.fg("muted", ` [${scope}]`);
-			text += `\n  ${theme.fg("dim", preview)}`;
+				theme.fg("accent", agentName);
 			const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
 			component.setText(text);
 			return component;
@@ -1372,14 +1368,8 @@ export default function (pi: ExtensionAPI) {
 			if (isPartial) {
 				// Live progress lives in the widget above the editor; the tool area
 				// only shows a static placeholder while the subagent runs.
-				const r = details.results[0];
 				const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
-				component.setText(
-					theme.fg("warning", "⏳ ") +
-						theme.fg("toolTitle", theme.bold(r.agent)) +
-						theme.fg("warning", " Running... ") +
-						theme.fg("dim", formatPhase(r.phase)),
-				);
+				component.setText(theme.fg("warning", "⏳ Running..."));
 				return component;
 			}
 
