@@ -646,22 +646,6 @@ export class SubagentProgressManager {
 
 const progressManager = new SubagentProgressManager();
 
-/** Minimal result used for the one-shot "Running..." placeholder rendered while the subagent runs. */
-function createPlaceholderResult(agent: string, task: string, sessionId: string): SingleResult {
-	return {
-		agent,
-		agentSource: "unknown",
-		task,
-		exitCode: 0,
-		messages: [],
-		stderr: "",
-		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-		phase: "thinking",
-		lastPhaseChange: Date.now(),
-		sessionId,
-	};
-}
-
 /** Truncate to at most `max` Unicode code points (safe for emoji/CJK), appending "..." if truncated. */
 function truncateCodePoints(str: string, max: number): string {
 	const chars = Array.from(str);
@@ -1302,18 +1286,12 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 
-			// The tool area is only rendered once at the start (placeholder) and
-			// once at the end (full result). Live progress goes through the
-			// progress manager's widget, not the TUI render pipeline.
+			// The tool area is rendered only once, when execute() returns the final
+			// result. Live progress goes through the progress manager's widget, not
+			// the TUI render pipeline.
 			const effectiveSessionId = params.sessionId ?? uuidv7();
 			progressManager.register(ctx, effectiveSessionId, params.agent);
 			try {
-				if (onUpdate) {
-					onUpdate({
-						content: [{ type: "text", text: "Running..." }],
-						details: makeDetails([createPlaceholderResult(params.agent, task, effectiveSessionId)]),
-					});
-				}
 				const result = await runSingleAgent(
 					ctx.cwd,
 					agents,
@@ -1359,20 +1337,10 @@ export default function (pi: ExtensionAPI) {
 			return component;
 		},
 
-		renderResult(result, { expanded, isPartial }, theme, context) {
+		renderResult(result, { expanded }, theme, context) {
 			const details = result.details as SubagentDetails | undefined;
 			if (!details || details.results.length === 0) {
 				return new Text(result.content[0]?.type === "text" ? result.content[0].text : "(no output)", 0, 0);
-			}
-
-			if (isPartial) {
-				// Live progress lives in the widget above the editor; while the subagent
-				// runs, the tool area shows only the renderCall line. renderResult cannot
-				// return undefined (tool-execution would addChild(undefined) and crash the
-				// Box render), so render an empty Text that produces zero lines.
-				const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
-				component.setText("");
-				return component;
 			}
 
 			const mdTheme = getMarkdownTheme();
