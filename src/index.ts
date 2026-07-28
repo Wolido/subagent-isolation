@@ -628,7 +628,15 @@ export class SubagentProgressManager {
 			const toolHint = a.recentTools.length > 0 ? `  → ${a.recentTools[a.recentTools.length - 1]}` : "";
 			return `${nameCol} ${phaseCol} ${formatElapsed(a.startedAt)}${toolHint}`;
 		});
-		this.ctx.ui.setWidget(PROGRESS_WIDGET_KEY, lines);
+		// Wrap the content in a single-line box; the border width matches the
+		// longest content line.
+		const contentWidth = Math.max(...lines.map((l) => l.length));
+		const innerWidth = contentWidth + 2; // " " padding on both sides
+		const label = `─ Subagents (${sorted.length}) `;
+		const top = `┌${label}${"─".repeat(Math.max(0, innerWidth - label.length))}┐`;
+		const middle = lines.map((l) => `│ ${l.padEnd(contentWidth)} │`);
+		const bottom = `└${"─".repeat(innerWidth)}┘`;
+		this.ctx.ui.setWidget(PROGRESS_WIDGET_KEY, [top, ...middle, bottom]);
 		this.widgetSet = true;
 	}
 
