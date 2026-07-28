@@ -1183,9 +1183,6 @@ export default function (pi: ExtensionAPI) {
 			'To restrict to only user or project agents, set agentScope: "user" or "project".',
 		].join(" "),
 		parameters: SubagentParams,
-		// The tool owns its shell: while executing it renders nothing at all
-		// (progress goes to the widget), and only the final render is shown.
-		renderShell: "self",
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const currentDepth = parseInt(process.env.PI_SUBAGENT_DEPTH || "0", 10);
