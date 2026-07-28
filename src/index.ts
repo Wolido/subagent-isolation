@@ -1366,10 +1366,12 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			if (isPartial) {
-				// Live progress lives in the widget above the editor; the tool area
-				// only shows a static placeholder while the subagent runs.
+				// Live progress lives in the widget above the editor; while the subagent
+				// runs, the tool area shows only the renderCall line. renderResult cannot
+				// return undefined (tool-execution would addChild(undefined) and crash the
+				// Box render), so render an empty Text that produces zero lines.
 				const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
-				component.setText(theme.fg("warning", "⏳ Running..."));
+				component.setText("");
 				return component;
 			}
 
