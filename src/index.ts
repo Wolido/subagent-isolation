@@ -1183,6 +1183,9 @@ export default function (pi: ExtensionAPI) {
 			'To restrict to only user or project agents, set agentScope: "user" or "project".',
 		].join(" "),
 		parameters: SubagentParams,
+		// The tool owns its shell: while executing it renders nothing at all
+		// (progress goes to the widget), and only the final render is shown.
+		renderShell: "self",
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const currentDepth = parseInt(process.env.PI_SUBAGENT_DEPTH || "0", 10);
@@ -1291,6 +1294,8 @@ export default function (pi: ExtensionAPI) {
 			// the TUI render pipeline.
 			const effectiveSessionId = params.sessionId ?? uuidv7();
 			progressManager.register(ctx, effectiveSessionId, params.agent);
+			// Hide pi's built-in Working spinner for the duration of the run.
+			if (ctx.hasUI) ctx.ui.setWorkingVisible(false);
 			try {
 				const result = await runSingleAgent(
 					ctx.cwd,
@@ -1323,16 +1328,23 @@ export default function (pi: ExtensionAPI) {
 					details: makeDetails([result]),
 				};
 			} finally {
+				// Always restore pi's default working indicator, even on error/abort.
+				if (ctx.hasUI) ctx.ui.setWorkingVisible(true);
 				progressManager.unregister(effectiveSessionId);
 			}
 		},
 
 		renderCall(args, theme, context) {
+			const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
+			if (context.isPartial) {
+				// Still executing: render nothing so the tool row is invisible.
+				component.setText("");
+				return component;
+			}
 			const agentName = args.agent || "...";
 			const text =
 				theme.fg("toolTitle", theme.bold("subagent ")) +
 				theme.fg("accent", agentName);
-			const component = context.lastComponent instanceof Text ? context.lastComponent : new Text("", 0, 0);
 			component.setText(text);
 			return component;
 		},
