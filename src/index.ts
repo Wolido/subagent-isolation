@@ -1294,8 +1294,6 @@ export default function (pi: ExtensionAPI) {
 			// the TUI render pipeline.
 			const effectiveSessionId = params.sessionId ?? uuidv7();
 			progressManager.register(ctx, effectiveSessionId, params.agent);
-			// Hide pi's built-in Working spinner for the duration of the run.
-			if (ctx.hasUI) ctx.ui.setWorkingVisible(false);
 			try {
 				const result = await runSingleAgent(
 					ctx.cwd,
@@ -1328,8 +1326,6 @@ export default function (pi: ExtensionAPI) {
 					details: makeDetails([result]),
 				};
 			} finally {
-				// Always restore pi's default working indicator, even on error/abort.
-				if (ctx.hasUI) ctx.ui.setWorkingVisible(true);
 				progressManager.unregister(effectiveSessionId);
 			}
 		},
