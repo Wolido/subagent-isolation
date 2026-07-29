@@ -19,6 +19,7 @@ import * as crypto from "node:crypto";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
+	DynamicBorder,
 	type ExtensionAPI,
 	type ExtensionContext,
 	getMarkdownTheme,
@@ -26,7 +27,7 @@ import {
 	getAgentDir,
 	parseFrontmatter,
 } from "@earendil-works/pi-coding-agent";
-import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Markdown, Spacer, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 // ===== UUID v7 helper =====
@@ -555,7 +556,7 @@ function summarizeToolCall(toolName: string, args: Record<string, any>): string 
 	const raw = ((args.file_path || args.path || args.command || args.pattern || "") as string).replace(/\n/g, "↵");
 	const home = os.homedir();
 	const shortened = raw.startsWith(home) ? `~${raw.slice(home.length)}` : raw;
-	return truncateCodePoints(shortened ? `${toolName} ${shortened}` : toolName, 60);
+	return truncateToWidth(shortened ? `${toolName} ${shortened}` : toolName, 60);
 }
 
 function getRecentToolSummaries(messages: Message[]): string[] {
@@ -620,23 +621,50 @@ export class SubagentProgressManager {
 		if (!this.ctx?.hasUI) return;
 		const sorted = [...this.agents.values()].sort((a, b) => a.startedAt - b.startedAt);
 		if (sorted.length === 0) return;
-		// Over the line budget, truncate the earliest-started agents first.
-		const maxLines = Math.max(1, Math.min(process.stdout.rows || MAX_WIDGET_LINES, MAX_WIDGET_LINES));
-		const lines = sorted.slice(-maxLines).map((a) => {
-			const nameCol = truncateCodePoints(a.name, 10).padEnd(10);
-			const phaseCol = formatPhase(a.phase).padEnd(28);
-			const toolHint = a.recentTools.length > 0 ? `  → ${a.recentTools[a.recentTools.length - 1]}` : "";
-			return `${nameCol} ${phaseCol} ${formatElapsed(a.startedAt)}${toolHint}`;
+		// Over the row budget, truncate the earliest-started agents first
+		// (total widget lines = maxAgentRows + 2 border lines).
+		const maxAgentRows = Math.max(1, Math.min(process.stdout.rows || MAX_WIDGET_LINES, MAX_WIDGET_LINES));
+		const visible = sorted.slice(-maxAgentRows);
+		const total = sorted.length;
+		// Note: the factory closes over `theme`; between a theme change and the next
+		// refresh (≤1s) the widget may briefly use the stale theme. The 1Hz timer
+		// replaces the factory on every tick, so this self-heals.
+		this.ctx.ui.setWidget(PROGRESS_WIDGET_KEY, (_tui, theme) => {
+			const borderColor = (s: string) => theme.fg("border", s);
+			const bottomBorder = new DynamicBorder(borderColor);
+			// Top horizontal separator with the agent count embedded in the line.
+			const renderTopBorder = (width: number): string => {
+				const label = ` Subagents (${total}) `;
+				const labelWidth = visibleWidth(label);
+				// Too narrow for the label: fall back to a plain separator. When
+				// width = labelWidth + 1 the label still fits (leading "─" + label,
+				// no trailing "─"); this asymmetric look is accepted on narrow
+				// terminals.
+				if (labelWidth + 1 > width) return bottomBorder.render(width)[0];
+				return borderColor("─") + theme.fg("accent", label) + borderColor("─".repeat(width - labelWidth - 1));
+			};
+			const renderRow = (a: AgentProgress, width: number): string => {
+				const nameCol = truncateToWidth(a.name, 10, "...", true);
+				const phaseCol = truncateToWidth(formatPhase(a.phase), 28, "...", true);
+				const toolHint = a.recentTools.length > 0 ? `  → ${a.recentTools[a.recentTools.length - 1]}` : "";
+				const line =
+					`${theme.fg("success", "●")} ${nameCol} ${theme.fg("warning", phaseCol)} ${formatElapsed(a.startedAt)}` +
+					(toolHint ? theme.fg("dim", toolHint) : "");
+				return truncateToWidth(line, width);
+			};
+			// Stateless render: themed strings are rebuilt on every render() call,
+			// so invalidate() has no cached state to rebuild. Note that render() is
+			// not a pure function: the elapsed time (formatElapsed -> Date.now())
+			// is computed live on each render.
+			return {
+				render: (width: number) => [
+					renderTopBorder(width),
+					...visible.map((a) => renderRow(a, width)),
+					...bottomBorder.render(width),
+				],
+				invalidate: () => bottomBorder.invalidate(),
+			};
 		});
-		// Wrap the content in a single-line box; the border width matches the
-		// longest content line.
-		const contentWidth = Math.max(...lines.map((l) => l.length));
-		const innerWidth = contentWidth + 2; // " " padding on both sides
-		const label = `─ Subagents (${sorted.length}) `;
-		const top = `┌${label}${"─".repeat(Math.max(0, innerWidth - label.length))}┐`;
-		const middle = lines.map((l) => `│ ${l.padEnd(contentWidth)} │`);
-		const bottom = `└${"─".repeat(innerWidth)}┘`;
-		this.ctx.ui.setWidget(PROGRESS_WIDGET_KEY, [top, ...middle, bottom]);
 		this.widgetSet = true;
 	}
 
@@ -655,12 +683,6 @@ export class SubagentProgressManager {
 }
 
 const progressManager = new SubagentProgressManager();
-
-/** Truncate to at most `max` Unicode code points (safe for emoji/CJK), appending "..." if truncated. */
-function truncateCodePoints(str: string, max: number): string {
-	const chars = Array.from(str);
-	return chars.length > max ? `${chars.slice(0, max).join("")}...` : str;
-}
 
 /**
  * Build the isolated session directory for a subagent.
