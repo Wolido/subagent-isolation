@@ -80,10 +80,10 @@ These variables are propagated into every subagent process automatically:
 | `PI_CAN_DELEGATE` | `true` | Whether the current agent is allowed to delegate. Derived from `canDelegate`. |
 | `PI_CURRENT_AGENT_NAME` | — | Name of the current agent, injected into every subagent process. |
 | `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000` (10 min) | Max idle time on stdout before the subagent is killed. |
-| `PI_SUBAGENT_HARD_TIMEOUT_MS` | `1800000` (30 min) | Absolute maximum runtime for a single subagent call. |
+| `PI_SUBAGENT_HARD_TIMEOUT_MS` | `0` (disabled) | Absolute maximum runtime for a single call. Set a positive value (ms) to enable. |
 
 ## Timeouts and termination
 
 - Activity timeout: 10 minutes — subagent is killed if stdout is idle.
-- Hard timeout: 30 minutes — single call is killed regardless of output.
+- Hard timeout: disabled by default (`PI_SUBAGENT_HARD_TIMEOUT_MS=0`), no absolute maximum runtime. Set a positive value in milliseconds to enable.
 - On `AbortSignal`, `SIGTERM` is sent; `SIGKILL` follows after 5 seconds if still running.
