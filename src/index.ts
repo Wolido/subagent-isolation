@@ -774,22 +774,25 @@ async function runSingleAgent(
 	if (effectiveThinking) args.push("--thinking", effectiveThinking);
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
+	// Effective working directory: agent-specific cwd > session default.
+	// Used both for resolving relative skill paths and as the spawned process cwd.
+	const effectiveCwd = cwd ?? defaultCwd;
+
 	// MODIFIED: inject per-agent skill isolation
 	const skillWarnings: string[] = [];
 	if (agent.skills !== undefined) {
 		args.push("--no-skills");
 		if (agent.skills.length > 0) {
-			const baseDir = cwd ?? defaultCwd;
 			for (const skillPath of agent.skills) {
 				const resolved = skillPath.startsWith("~/")
 				    ? path.join(os.homedir(), skillPath.slice(2))
 				    : path.isAbsolute(skillPath)
 				        ? skillPath
-				        : path.resolve(baseDir, skillPath);
+				        : path.resolve(effectiveCwd, skillPath);
 
-				// Reject relative skill paths that escape baseDir
+				// Reject relative skill paths that escape effectiveCwd
 				if (!skillPath.startsWith("~/") && !path.isAbsolute(skillPath)) {
-					const rel = path.relative(baseDir, resolved);
+					const rel = path.relative(effectiveCwd, resolved);
 					if (rel === ".." || rel.startsWith(".." + path.sep)) {
 						skillWarnings.push(
 							`[subagent-isolation] skill path "${skillPath}" resolves outside the agent base directory and was ignored.\n`,
@@ -876,7 +879,7 @@ async function runSingleAgent(
 			const invocation = getPiInvocation(args);
 			const currentDepth = parseInt(process.env.PI_SUBAGENT_DEPTH || "0", 10);
 			const proc = spawn(invocation.command, invocation.args, {
-				cwd: cwd ?? defaultCwd,
+				cwd: effectiveCwd,
 				shell: false,
 				stdio: ["ignore", "pipe", "pipe"],
 				env: {
