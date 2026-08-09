@@ -785,10 +785,10 @@ async function runSingleAgent(
 		if (agent.skills.length > 0) {
 			for (const skillPath of agent.skills) {
 				const resolved = skillPath.startsWith("~/")
-				    ? path.join(os.homedir(), skillPath.slice(2))
-				    : path.isAbsolute(skillPath)
-				        ? skillPath
-				        : path.resolve(effectiveCwd, skillPath);
+					? path.join(os.homedir(), skillPath.slice(2))
+					: path.isAbsolute(skillPath)
+						? skillPath
+						: path.resolve(effectiveCwd, skillPath);
 
 				// Reject relative skill paths that escape effectiveCwd
 				if (!skillPath.startsWith("~/") && !path.isAbsolute(skillPath)) {
