@@ -5,12 +5,15 @@
  *
  * `runSingleAgent` is module-private, so these tests lock the observable
  * behavior through the public extension entry point: the `subagent` tool
- * registered by the default export. The effective cwd affects exactly two
- * observable outputs of the spawned subagent process invocation:
+ * registered by the default export. The two `cwd ?? defaultCwd` resolutions
+ * below were originally computed independently; the issue #1 refactor
+ * replaced them with a single `effectiveCwd` variable, declared once and
+ * reused at both sites. The effective cwd affects exactly two observable
+ * outputs of the spawned subagent process invocation:
  *
  *   1. Relative `skills` paths in agent frontmatter are resolved against
- *      `cwd ?? defaultCwd` and passed as `--skill <resolved>` CLI args.
- *   2. The spawned pi process is started with `cwd: cwd ?? defaultCwd`.
+ *      `effectiveCwd` and passed as `--skill <resolved>` CLI args.
+ *   2. The spawned pi process is started with `cwd: effectiveCwd`.
  *
  * The subprocess boundary (`node:child_process.spawn`) is mocked so we can
  * capture the CLI args and spawn options without launching a real pi process.
