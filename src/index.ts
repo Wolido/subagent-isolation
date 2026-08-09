@@ -868,7 +868,7 @@ async function runSingleAgent(
 		const POST_EXIT_GRACE_MS = 500;
 		const ABORT_FORCE_TIMEOUT_MS = 2000;
 		const DEFAULT_ACTIVITY_TIMEOUT_MS = 600_000;
-		const DEFAULT_HARD_TIMEOUT_MS = 1_800_000;
+		const DEFAULT_HARD_TIMEOUT_MS = 0;
 
 		const parseEnvInt = (raw: string | undefined, fallback: number): number => {
 			const parsed = parseInt(raw || String(fallback), 10);

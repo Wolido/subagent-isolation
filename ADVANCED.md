@@ -80,10 +80,10 @@ canDelegate: false
 | `PI_CAN_DELEGATE` | `true` | 当前 agent 是否允许委托，由 `canDelegate` 推导。 |
 | `PI_CURRENT_AGENT_NAME` | — | 当前 agent 名称，注入每个子 agent 进程。 |
 | `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000`（10 分钟） | stdout 空闲时的最大允许时间。 |
-| `PI_SUBAGENT_HARD_TIMEOUT_MS` | `1800000`（30 分钟） | 单次 subagent 调用的绝对最大运行时长。 |
+| `PI_SUBAGENT_HARD_TIMEOUT_MS` | `0`（禁用） | 单次调用的绝对最大运行时长。设为正数（毫秒）启用。 |
 
 ## 超时与终止
 
 - 活动超时 10 分钟：子 agent stdout 长时间无输出会被终止。
-- 硬超时 30 分钟：单次调用无论是否有输出，超过即终止。
+- 硬超时默认禁用（`PI_SUBAGENT_HARD_TIMEOUT_MS=0`），不设绝对最大运行时长。如需启用，显式设置为正数毫秒值。
 - 收到 `AbortSignal` 时先发送 `SIGTERM`，5 秒后未退出则发送 `SIGKILL`。
