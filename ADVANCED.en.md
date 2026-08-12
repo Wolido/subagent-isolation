@@ -79,11 +79,12 @@ These variables are propagated into every subagent process automatically:
 | `PI_SUBAGENT_DEPTH` | `0` | Current recursion depth. Auto-incremented per nested call. Hard cap is `2`. |
 | `PI_CAN_DELEGATE` | `true` | Whether the current agent is allowed to delegate. Derived from `canDelegate`. |
 | `PI_CURRENT_AGENT_NAME` | — | Name of the current agent, injected into every subagent process. |
-| `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000` (10 min) | Max idle time on stdout before the subagent is killed. |
+| `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000` (10 min) | Max idle time with no output on either stdout or stderr before the subagent is killed. |
 | `PI_SUBAGENT_HARD_TIMEOUT_MS` | `0` (disabled) | Absolute maximum runtime for a single call. Set a positive value (ms) to enable. |
 
 ## Timeouts and termination
 
-- Activity timeout: 10 minutes — subagent is killed if stdout is idle.
+- Activity timeout: 10 minutes — subagent is killed if neither stdout nor stderr produces output (no activity). The timer starts as soon as the child process spawns and resets whenever either stream receives data.
 - Hard timeout: disabled by default (`PI_SUBAGENT_HARD_TIMEOUT_MS=0`), no absolute maximum runtime. Set a positive value in milliseconds to enable.
+- When a timeout kills the subagent, the result's `stopReason` is `"activity_timeout"` (activity timeout) or `"hard_timeout"` (hard timeout). It appears in the diagnostic output (`Stop reason: ...`) and as a UI badge, distinguishing "killed by timeout" from "subagent failed on its own".
 - On `AbortSignal`, `SIGTERM` is sent; `SIGKILL` follows after 5 seconds if still running.

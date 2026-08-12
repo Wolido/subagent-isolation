@@ -79,11 +79,12 @@ canDelegate: false
 | `PI_SUBAGENT_DEPTH` | `0` | 当前递归深度。每次嵌套调用自动递增，硬上限为 `2`。 |
 | `PI_CAN_DELEGATE` | `true` | 当前 agent 是否允许委托，由 `canDelegate` 推导。 |
 | `PI_CURRENT_AGENT_NAME` | — | 当前 agent 名称，注入每个子 agent 进程。 |
-| `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000`（10 分钟） | stdout 空闲时的最大允许时间。 |
+| `PI_SUBAGENT_ACTIVITY_TIMEOUT_MS` | `600000`（10 分钟） | stdout 和 stderr 均无输出（无活动）时的最大允许时间。 |
 | `PI_SUBAGENT_HARD_TIMEOUT_MS` | `0`（禁用） | 单次调用的绝对最大运行时长。设为正数（毫秒）启用。 |
 
 ## 超时与终止
 
-- 活动超时 10 分钟：子 agent stdout 长时间无输出会被终止。
+- 活动超时 10 分钟：子 agent 的 stdout 和 stderr 长时间均无输出（无活动）会被终止。计时器自子进程启动即开始计时，stdout 或 stderr 任一有数据即重置。
 - 硬超时默认禁用（`PI_SUBAGENT_HARD_TIMEOUT_MS=0`），不设绝对最大运行时长。如需启用，显式设置为正数毫秒值。
+- 超时 kill 时结果中的 `stopReason` 为 `"activity_timeout"`（活动超时）或 `"hard_timeout"`（硬超时），会出现在诊断输出（`Stop reason: ...`）和 UI 徽标中，用于区分"超时被杀"与"子 agent 主动失败"。
 - 收到 `AbortSignal` 时先发送 `SIGTERM`，5 秒后未退出则发送 `SIGKILL`。

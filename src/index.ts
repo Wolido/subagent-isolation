@@ -896,6 +896,7 @@ async function runSingleAgent(
 			let postExitTimer: ReturnType<typeof setTimeout> | undefined;
 			let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
 			let activityTimer: ReturnType<typeof setTimeout> | undefined;
+			let lastActivityAt = Date.now();
 			let hardTimer: ReturnType<typeof setTimeout> | undefined;
 			let abortForceTimer: ReturnType<typeof setTimeout> | undefined;
 			let killProc: (() => void) | undefined;
@@ -1039,7 +1040,17 @@ async function runSingleAgent(
 							currentResult.usage.contextTokens = usage.totalTokens || 0;
 						}
 						if (!currentResult.model && msg.model) currentResult.model = msg.model;
-						if (msg.stopReason) currentResult.stopReason = msg.stopReason;
+						// A timeout stopReason is set by the activity/hard timers right before
+						// finalize() flushes the leftover buffer through processLineRaw (which
+						// bypasses the `resolved` guard in processLine). Never override it;
+						// all other stopReasons keep the last-one-wins multi-turn semantics.
+						if (
+							msg.stopReason &&
+							currentResult.stopReason !== "activity_timeout" &&
+							currentResult.stopReason !== "hard_timeout"
+						) {
+							currentResult.stopReason = msg.stopReason;
+						}
 						if (msg.errorMessage) currentResult.errorMessage = msg.errorMessage;
 						if (msg.stopReason === "error" || msg.errorMessage) {
 							try {
@@ -1061,7 +1072,10 @@ async function runSingleAgent(
 			};
 
 			const resetActivityTimer = () => {
-				if (resolved) return;
+				// Don't (re)arm after resolution, once abort started teardown, or after
+				// the process exited: in those states an activity timeout is meaningless.
+				if (resolved || wasAborted || exitCodeValue !== null) return;
+				lastActivityAt = Date.now();
 				if (activityTimer) clearTimeout(activityTimer);
 				const activityMs = parseEnvInt(
 					process.env.PI_SUBAGENT_ACTIVITY_TIMEOUT_MS,
@@ -1069,7 +1083,8 @@ async function runSingleAgent(
 				);
 				if (activityMs > 0) {
 					activityTimer = setTimeout(() => {
-						const elapsed = Date.now() - currentResult.lastPhaseChange;
+						currentResult.stopReason = "activity_timeout";
+						const elapsed = Date.now() - lastActivityAt;
 						const phase = currentResult.phase;
 						const turns = currentResult.usage.turns;
 						currentResult.stderr += `[subagent-isolation] activity timeout exceeded after ${Math.round(elapsed / 1000)}s idle (phase: ${phase}, turns: ${turns}), killing...\n`;
@@ -1084,12 +1099,17 @@ async function runSingleAgent(
 			};
 
 			const setupHardTimer = () => {
+				// Don't arm after resolution, once abort started teardown, or after
+				// the process exited (same guard as resetActivityTimer): a hard
+				// timeout is meaningless in those states.
+				if (resolved || wasAborted || exitCodeValue !== null) return;
 				const hardMs = parseEnvInt(
 					process.env.PI_SUBAGENT_HARD_TIMEOUT_MS,
 					DEFAULT_HARD_TIMEOUT_MS,
 				);
 				if (hardMs > 0) {
 					hardTimer = setTimeout(() => {
+						currentResult.stopReason = "hard_timeout";
 						const turns = currentResult.usage.turns;
 						const phase = currentResult.phase;
 						currentResult.stderr += `[subagent-isolation] hard timeout exceeded (phase: ${phase}, turns: ${turns}), killing...\n`;
@@ -1118,10 +1138,21 @@ async function runSingleAgent(
 
 			proc.stderr.on("data", (data) => {
 				currentResult.stderr += data.toString();
+				resetActivityTimer();
 			});
 
 			proc.on("exit", (code, signal) => {
 				exitCodeValue = signal ? 1 : (code ?? 0);
+				// The process is gone: disarm the timeout timers so they can't fire
+				// during the post-exit grace window and mislabel a normal exit.
+				if (activityTimer) {
+					clearTimeout(activityTimer);
+					activityTimer = undefined;
+				}
+				if (hardTimer) {
+					clearTimeout(hardTimer);
+					hardTimer = undefined;
+				}
 				maybeFinalizeAfterExit();
 				if (!resolved) {
 					postExitTimer = setTimeout(() => finalize(exitCodeValue ?? 0), POST_EXIT_GRACE_MS);
@@ -1140,6 +1171,17 @@ async function runSingleAgent(
 			if (signal) {
 				killProc = () => {
 					wasAborted = true;
+					// Abort takes over process teardown: disarm the timeout timers so
+					// they can't fire during the SIGTERM grace period and mislabel the
+					// abort as a timeout (or SIGKILL prematurely).
+					if (activityTimer) {
+						clearTimeout(activityTimer);
+						activityTimer = undefined;
+					}
+					if (hardTimer) {
+						clearTimeout(hardTimer);
+						hardTimer = undefined;
+					}
 					try {
 						proc.kill("SIGTERM");
 					} catch {
@@ -1167,6 +1209,7 @@ async function runSingleAgent(
 			}
 
 			setupHardTimer();
+			resetActivityTimer();
 		});
 
 		currentResult.exitCode = exitCode;
