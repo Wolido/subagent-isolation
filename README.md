@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> 强烈建议您使用异步版本 [async-subagent-isolation](https://github.com/Wolido/async-subagent-isolation)，目前的主要开发和升级也都集中在异步版本。子 agent 并行执行，主 agent 委派后无需等待即可继续规划，agent 规划和分解任务的能力在这个形态下能真正施展开。如果您是新接触本项目，建议从异步版开始体验。
+
 <div align="right"><a href="README.en.md">English</a></div>
 
 <div align="center"><img src="logo.svg" alt="subagent-isolation logo" width="150"></div>

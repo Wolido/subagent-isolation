@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> We strongly recommend the async version: [async-subagent-isolation](https://github.com/Wolido/async-subagent-isolation) — our main development and improvements now focus there. Subagents run in parallel, and the main agent doesn't wait after delegating; it goes straight back to planning, which is where an agent's ability to plan and decompose tasks truly comes into its own. If you're new to this project, the async version is the better place to start.
+
 <div align="right"><a href="README.md">中文</a></div>
 
 <div align="center"><img src="logo.svg" alt="subagent-isolation logo" width="150"></div>
