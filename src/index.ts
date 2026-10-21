@@ -515,15 +515,19 @@ async function writePromptToTempFile(
 }
 
 function getPiInvocation(args: string[]): { command: string; args: string[] } {
-	const currentScript = process.argv[1];
-	if (currentScript && fs.existsSync(currentScript)) {
-		return { command: process.execPath, args: [currentScript, ...args] };
-	}
-
+	// Resolve the runtime before looking at argv[1]: a Bun-compiled single-file
+	// binary reports the virtual path `/$bunfs/root/pi` as argv[1], and Bun's
+	// virtual FS makes existsSync() succeed on it, so testing the entry script
+	// first would prepend that path as a bogus script argument.
 	const execName = path.basename(process.execPath).toLowerCase();
 	const isGenericRuntime = /^(node|bun)(\.exe)?$/.test(execName);
 	if (!isGenericRuntime) {
 		return { command: process.execPath, args };
+	}
+
+	const currentScript = process.argv[1];
+	if (currentScript && fs.existsSync(currentScript)) {
+		return { command: process.execPath, args: [currentScript, ...args] };
 	}
 
 	return { command: "pi", args };
